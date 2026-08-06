@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.9 — 2026-08-06
+
+- Added automated GitHub Actions quality checks for every push and pull request.
+
 ## 1.0.8 — 2026-08-06
 
 - Added automated semantic versioning and release preparation.

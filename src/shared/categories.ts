@@ -1,4 +1,4 @@
-import type { CategoryId, TimeUnit } from "./types";
+import type { CategoryId, CategoryScanBucket, TimeUnit } from "./types";
 
 export interface CategoryPreset {
   id: CategoryId;
@@ -86,4 +86,20 @@ export function suggestCategory(input: string): CategoryPreset | undefined {
   const hostname = normalizeHostname(input);
   if (!hostname) return undefined;
   return CATEGORY_PRESETS.find((preset) => preset.domains.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`)));
+}
+
+export function categorizeHistoryEntries(entries: ReadonlyArray<{ url?: string; visitCount?: number }>): CategoryScanBucket[] {
+  const counts = new Map<CategoryId | undefined, CategoryScanBucket>();
+  for (const entry of entries) {
+    if (!entry.url) continue;
+    const category = suggestCategory(entry.url)?.id;
+    const current = counts.get(category) ?? { category, urls: 0, visits: 0 };
+    current.urls += 1;
+    current.visits += entry.visitCount ?? 0;
+    counts.set(category, current);
+  }
+  return [
+    ...CATEGORY_PRESETS.flatMap((preset) => counts.has(preset.id) ? [counts.get(preset.id)!] : []),
+    ...(counts.has(undefined) ? [counts.get(undefined)!] : []),
+  ];
 }

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.0 — 2026-08-06
+
+- Added a privacy-safe full-history category scanner with aggregate category and visit counts.
+
 ## 1.1.0 — 2026-08-06
 
 - Added local opt-in category presets for social media, webshops, news, streaming, search engines, travel, and entertainment and gaming.

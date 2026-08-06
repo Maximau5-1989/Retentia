@@ -62,3 +62,18 @@ export interface ScanResult {
   candidates: HistoryCandidate[];
   runAt: number;
 }
+
+export interface CategoryScanBucket {
+  category?: CategoryId;
+  urls: number;
+  visits: number;
+}
+
+export interface CategoryScanResult {
+  scanned: number;
+  categorized: number;
+  uncategorized: number;
+  buckets: CategoryScanBucket[];
+  runAt: number;
+  resultLimitReached: boolean;
+}

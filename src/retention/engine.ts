@@ -1,6 +1,24 @@
 import { storage } from "../shared/storage";
-import type { HistoryCandidate, RetentionRule, ScanResult } from "../shared/types";
+import { categorizeHistoryEntries } from "../shared/categories";
+import type { CategoryScanResult, HistoryCandidate, RetentionRule, ScanResult } from "../shared/types";
 import { durationToMs, findWinningRule, matchesRule } from "./matcher";
+
+const CATEGORY_SCAN_LIMIT = 1_000_000;
+
+export async function scanHistoryCategories(): Promise<CategoryScanResult> {
+  const history = await chrome.history.search({ text: "", startTime: 0, maxResults: CATEGORY_SCAN_LIMIT });
+  const buckets = categorizeHistoryEntries(history);
+  const categorized = buckets.filter((bucket) => bucket.category).reduce((total, bucket) => total + bucket.urls, 0);
+  const uncategorized = buckets.find((bucket) => !bucket.category)?.urls ?? 0;
+  return {
+    scanned: history.filter((item) => item.url).length,
+    categorized,
+    uncategorized,
+    buckets,
+    runAt: Date.now(),
+    resultLimitReached: history.length === CATEGORY_SCAN_LIMIT,
+  };
+}
 
 export async function deleteHistoryMatchingRule(rule: RetentionRule): Promise<number> {
   const settings = await storage.getSettings();

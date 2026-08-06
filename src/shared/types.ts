@@ -1,4 +1,4 @@
-export type RuleKind = "exact" | "domain" | "wildcard" | "regex";
+export type RuleKind = "exact" | "domain" | "category" | "wildcard" | "regex";
 export type TimeUnit = "minutes" | "hours" | "days";
 export type CategoryId = "social" | "shopping" | "news" | "streaming" | "search" | "travel" | "entertainment";
 
@@ -67,7 +67,17 @@ export interface CategoryScanBucket {
   category?: CategoryId;
   urls: number;
   visits: number;
+  domains: CategoryScanDomain[];
 }
+
+export interface CategoryScanDomain {
+  domain: string;
+  urls: number;
+  visits: number;
+  overridden: boolean;
+}
+
+export type CategoryOverrides = Record<string, CategoryId>;
 
 export interface CategoryScanResult {
   scanned: number;

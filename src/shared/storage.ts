@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS, SESSION_KEYS, STORAGE_KEYS } from "./defaults";
-import type { ActivityEntry, AuthThrottle, PasswordRecord, RetentionRule, ScanResult, Settings } from "./types";
+import type { ActivityEntry, AuthThrottle, CategoryOverrides, PasswordRecord, RetentionRule, ScanResult, Settings } from "./types";
 
 async function getLocal<T>(key: string, fallback: T): Promise<T> {
   const result = await chrome.storage.local.get(key);
@@ -9,6 +9,8 @@ async function getLocal<T>(key: string, fallback: T): Promise<T> {
 export const storage = {
   getRules: () => getLocal<RetentionRule[]>(STORAGE_KEYS.rules, []),
   setRules: (rules: RetentionRule[]) => chrome.storage.local.set({ [STORAGE_KEYS.rules]: rules }),
+  getCategoryOverrides: () => getLocal<CategoryOverrides>(STORAGE_KEYS.categoryOverrides, {}),
+  setCategoryOverrides: (overrides: CategoryOverrides) => chrome.storage.local.set({ [STORAGE_KEYS.categoryOverrides]: overrides }),
   async getSettings(): Promise<Settings> {
     return { ...DEFAULT_SETTINGS, ...(await getLocal<Partial<Settings>>(STORAGE_KEYS.settings, {})) };
   },
@@ -29,7 +31,7 @@ export const storage = {
   resetAuthThrottle: () => chrome.storage.local.set({ [STORAGE_KEYS.authThrottle]: { failedAttempts: 0, lockUntil: 0 } }),
   async resetProtectedData(): Promise<void> {
     const settings = await this.getSettings();
-    await chrome.storage.local.remove([STORAGE_KEYS.password, STORAGE_KEYS.rules, STORAGE_KEYS.activity, STORAGE_KEYS.lastScan, STORAGE_KEYS.authThrottle]);
+    await chrome.storage.local.remove([STORAGE_KEYS.password, STORAGE_KEYS.rules, STORAGE_KEYS.activity, STORAGE_KEYS.lastScan, STORAGE_KEYS.authThrottle, STORAGE_KEYS.categoryOverrides]);
     await this.setSettings({ ...settings, onboardingComplete: false });
   },
   async sanitizePrivacyData(): Promise<void> {

@@ -16,6 +16,7 @@ export const STORAGE_KEYS = {
   lastScan: "lastScan",
   password: "password",
   authThrottle: "authThrottle",
+  categoryOverrides: "categoryOverrides",
 } as const;
 
 export const SESSION_KEYS = {

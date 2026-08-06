@@ -14,6 +14,11 @@ describe("rule matcher", () => {
     expect(matchesRule("https://a.test/private/42", rule({ kind: "wildcard", pattern: "https://a.test/private/*" }))).toBe(true);
     expect(matchesRule("https://a.test/item/42", rule({ kind: "regex", pattern: "/item/\\d+$" }))).toBe(true);
   });
+  it("matches category rules with local domain overrides", () => {
+    const categoryRule = rule({ kind: "category", pattern: "news", category: "news" });
+    expect(matchesRule("https://nos.nl/article", categoryRule)).toBe(true);
+    expect(matchesRule("https://example.com/article", categoryRule, { "example.com": "news" })).toBe(true);
+  });
   it("uses the highest-priority matching rule", () => {
     const winner = findWinningRule("https://example.com/a", [rule({ id: "low", priority: 1 }), rule({ id: "high", priority: 99 })]);
     expect(winner?.id).toBe("high");

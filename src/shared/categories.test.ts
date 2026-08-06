@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { categorizeHistoryEntries, normalizeHostname, suggestCategory } from "./categories";
+import { categorizeHistoryEntries, normalizeHostname, resolveCategory, suggestCategory } from "./categories";
 
 describe("category suggestions", () => {
   it("recognizes known domains and their subdomains", () => {
@@ -22,10 +22,15 @@ describe("category suggestions", () => {
       { url: "https://unknown.example/private", visitCount: 1 },
     ]);
     expect(buckets).toEqual([
-      { category: "news", urls: 1, visits: 2 },
-      { category: "streaming", urls: 1, visits: 3 },
-      { category: undefined, urls: 1, visits: 1 },
+      { category: "news", urls: 1, visits: 2, domains: [{ domain: "nos.nl", urls: 1, visits: 2, overridden: false }] },
+      { category: "streaming", urls: 1, visits: 3, domains: [{ domain: "youtube.com", urls: 1, visits: 3, overridden: false }] },
+      { category: undefined, urls: 1, visits: 1, domains: [{ domain: "unknown.example", urls: 1, visits: 1, overridden: false }] },
     ]);
     expect(JSON.stringify(buckets)).not.toContain("private");
+  });
+
+  it("lets local overrides move a domain into another category", () => {
+    expect(resolveCategory("youtube.com", { "youtube.com": "entertainment" })).toBe("entertainment");
+    expect(categorizeHistoryEntries([{ url: "https://youtube.com/watch", visitCount: 1 }], { "youtube.com": "entertainment" })[0].domains[0].overridden).toBe(true);
   });
 });

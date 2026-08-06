@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.0 — 2026-08-06
+
+- Added ready-to-use default category rules, confirmed immediate cleanup of expired categorized history, and local per-domain category overrides.
+
 ## 1.2.0 — 2026-08-06
 
 - Added a privacy-safe full-history category scanner with aggregate category and visit counts.

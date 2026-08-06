@@ -1,4 +1,4 @@
-import type { CategoryId, CategoryScanBucket, TimeUnit } from "./types";
+import type { CategoryId, CategoryOverrides, CategoryScanBucket, CategoryScanDomain, TimeUnit } from "./types";
 
 export interface CategoryPreset {
   id: CategoryId;
@@ -88,16 +88,36 @@ export function suggestCategory(input: string): CategoryPreset | undefined {
   return CATEGORY_PRESETS.find((preset) => preset.domains.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`)));
 }
 
-export function categorizeHistoryEntries(entries: ReadonlyArray<{ url?: string; visitCount?: number }>): CategoryScanBucket[] {
-  const counts = new Map<CategoryId | undefined, CategoryScanBucket>();
+export function resolveCategory(input: string, overrides: CategoryOverrides = {}): CategoryId | undefined {
+  const hostname = normalizeHostname(input);
+  if (!hostname) return undefined;
+  const override = Object.entries(overrides)
+    .sort(([a], [b]) => b.length - a.length)
+    .find(([domain]) => hostname === domain || hostname.endsWith(`.${domain}`));
+  return override?.[1] ?? suggestCategory(hostname)?.id;
+}
+
+export function categorizeHistoryEntries(entries: ReadonlyArray<{ url?: string; visitCount?: number }>, overrides: CategoryOverrides = {}): CategoryScanBucket[] {
+  const domains = new Map<string, CategoryScanDomain>();
   for (const entry of entries) {
     if (!entry.url) continue;
-    const category = suggestCategory(entry.url)?.id;
-    const current = counts.get(category) ?? { category, urls: 0, visits: 0 };
+    const domain = normalizeHostname(entry.url);
+    if (!domain) continue;
+    const current = domains.get(domain) ?? { domain, urls: 0, visits: 0, overridden: Boolean(overrides[domain]) };
     current.urls += 1;
     current.visits += entry.visitCount ?? 0;
+    domains.set(domain, current);
+  }
+  const counts = new Map<CategoryId | undefined, CategoryScanBucket>();
+  for (const domain of domains.values()) {
+    const category = resolveCategory(domain.domain, overrides);
+    const current = counts.get(category) ?? { category, urls: 0, visits: 0, domains: [] };
+    current.urls += domain.urls;
+    current.visits += domain.visits;
+    current.domains.push(domain);
     counts.set(category, current);
   }
+  for (const bucket of counts.values()) bucket.domains.sort((a, b) => b.urls - a.urls || a.domain.localeCompare(b.domain));
   return [
     ...CATEGORY_PRESETS.flatMap((preset) => counts.has(preset.id) ? [counts.get(preset.id)!] : []),
     ...(counts.has(undefined) ? [counts.get(undefined)!] : []),

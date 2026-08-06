@@ -4,7 +4,8 @@ import { PasswordModal } from "../components/PasswordModal";
 import { ThemeButton } from "../components/ThemeButton";
 import { sessionStorage, storage } from "../shared/storage";
 import { deleteHistoryMatchingRule } from "../retention/engine";
-import type { RetentionRule, Settings, TimeUnit } from "../shared/types";
+import { CATEGORY_PRESETS, getCategoryPreset, suggestCategory } from "../shared/categories";
+import type { CategoryId, RetentionRule, Settings, TimeUnit } from "../shared/types";
 import "../styles.css";
 
 function Popup() {
@@ -16,10 +17,16 @@ function Popup() {
   const [passwordReady, setPasswordReady] = useState<boolean | null>(null);
   const [appUnlocked, setAppUnlocked] = useState<boolean | null>(null);
   const [deleteExisting, setDeleteExisting] = useState(false);
+  const [category, setCategory] = useState<CategoryId>();
 
   useEffect(() => {
     void Promise.all([chrome.tabs.query({ active: true, currentWindow: true }), storage.getSettings(), storage.getPassword(), sessionStorage.isUnlocked()]).then(([tabs, value, password, unlocked]) => {
-      setTab(tabs[0]); setSettings(value); setPasswordReady(Boolean(password)); setAppUnlocked(unlocked);
+      const activeTab = tabs[0];
+      setTab(activeTab); setSettings(value); setPasswordReady(Boolean(password)); setAppUnlocked(unlocked);
+      if (activeTab?.url) {
+        const preset = suggestCategory(activeTab.url);
+        if (preset) { setCategory(preset.id); setDuration(preset.duration); setUnit(preset.unit); }
+      }
     });
   }, []);
 
@@ -34,7 +41,7 @@ function Popup() {
     const rules = await storage.getRules();
     const rule: RetentionRule = {
       id: crypto.randomUUID(), name: url.hostname, kind: "domain", pattern: url.hostname,
-      duration, unit, enabled: true, priority: 50, createdAt: Date.now(),
+      duration, unit, enabled: true, priority: 50, category, createdAt: Date.now(),
     };
     await storage.setRules([rule, ...rules]);
     if (deleteExisting) await deleteHistoryMatchingRule(rule);
@@ -56,6 +63,11 @@ function Popup() {
     const next = { ...settings, theme: settings.theme === "light" ? "dark" as const : "light" as const };
     setSettings(next); await storage.setSettings(next);
   }
+  function selectCategory(id?: CategoryId) {
+    setCategory(id);
+    const preset = getCategoryPreset(id);
+    if (preset) { setDuration(preset.duration); setUnit(preset.unit); }
+  }
 
   return <main className="w-[360px] bg-[#f6f8f4] p-4 dark:bg-[#0c1420]">
     <header className="mb-4 flex items-center justify-between">
@@ -65,6 +77,7 @@ function Popup() {
     <section className="card p-4">
       <p className="muted mb-1 text-xs font-semibold uppercase tracking-wide">Current website</p>
       <p className="mb-4 mt-0 truncate font-bold">{tab?.url ? new URL(tab.url).hostname : "Unavailable"}</p>
+      <label><span className="label">Category preset</span><select className="field mb-2" value={category ?? ""} onChange={event => selectCategory((event.target.value || undefined) as CategoryId | undefined)}><option value="">Uncategorized</option>{CATEGORY_PRESETS.map(preset => <option key={preset.id} value={preset.id}>{preset.label}</option>)}</select></label>
       <div className="grid grid-cols-[1fr_1.3fr] gap-2">
         <input className="field" type="number" min="1" value={duration} onChange={(event) => setDuration(Number(event.target.value))} />
         <select className="field" value={unit} onChange={(event) => setUnit(event.target.value as TimeUnit)}><option value="minutes">Minutes</option><option value="hours">Hours</option><option value="days">Days</option></select>

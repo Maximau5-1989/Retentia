@@ -6,7 +6,8 @@ import { ChangePassword } from "../components/ChangePassword";
 import { deleteHistoryMatchingRule, scanHistory } from "../retention/engine";
 import { formatDate, shortenUrl } from "../shared/format";
 import { sessionStorage, storage } from "../shared/storage";
-import type { ActivityEntry, RetentionRule, RuleKind, ScanResult, Settings, TimeUnit } from "../shared/types";
+import { CATEGORY_PRESETS, getCategoryPreset, suggestCategory } from "../shared/categories";
+import type { ActivityEntry, CategoryId, RetentionRule, RuleKind, ScanResult, Settings, TimeUnit } from "../shared/types";
 import "../styles.css";
 
 type View = "overview" | "rules" | "simulator" | "activity" | "settings";
@@ -44,6 +45,15 @@ function Dashboard() {
   useEffect(() => { void refresh(); }, []);
 
   async function persistRules(next: RetentionRule[]) { setRules(next); await storage.setRules(next); }
+  function applyCategory(category?: CategoryId) {
+    const preset = getCategoryPreset(category);
+    setDraft(current => ({ ...current, category, ...(preset ? { duration: preset.duration, unit: preset.unit } : {}) }));
+  }
+  function suggestDraftCategory() {
+    if (draft.category) return;
+    const preset = suggestCategory(draft.pattern);
+    if (preset) applyCategory(preset.id);
+  }
   async function saveRule(event: React.FormEvent) {
     event.preventDefault();
     const isNewRule = !editingId;
@@ -57,7 +67,7 @@ function Dashboard() {
     setDraft(EMPTY_RULE); setEditingId(undefined); setDeleteExisting(false); setNotice(removed ? `Rule saved · ${removed} matching URL${removed === 1 ? "" : "s"} removed` : "Rule saved");
     if (removed) setActivity(await storage.getActivity());
   }
-  function editRule(rule: RetentionRule) { setEditingId(rule.id); setDeleteExisting(false); setDraft({ name: rule.name, kind: rule.kind, pattern: rule.pattern, duration: rule.duration, unit: rule.unit, enabled: rule.enabled, priority: rule.priority }); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function editRule(rule: RetentionRule) { setEditingId(rule.id); setDeleteExisting(false); setDraft({ name: rule.name, kind: rule.kind, pattern: rule.pattern, duration: rule.duration, unit: rule.unit, enabled: rule.enabled, priority: rule.priority, category: rule.category }); window.scrollTo({ top: 0, behavior: "smooth" }); }
   async function simulate() { setSimulating(true); try { setLastScan(await scanHistory(false)); } finally { setSimulating(false); } }
   async function runCleanup() { if (!confirm("Delete all currently expired matching URLs from browser history? This cannot be undone.")) return; setSimulating(true); try { setLastScan(await scanHistory(true)); await refresh(); setNotice("Cleanup complete"); } finally { setSimulating(false); } }
   async function updateSettings(next: Settings) { setSettings(next); await storage.setSettings(next); }
@@ -73,7 +83,8 @@ function Dashboard() {
     if (pendingRuleUrl) {
       try {
         const parsed = new URL(pendingRuleUrl);
-        setDraft({ ...EMPTY_RULE, name: parsed.hostname, kind: "exact", pattern: pendingRuleUrl });
+        const preset = suggestCategory(parsed.hostname);
+        setDraft({ ...EMPTY_RULE, name: parsed.hostname, kind: "exact", pattern: pendingRuleUrl, ...(preset ? { category: preset.id, duration: preset.duration, unit: preset.unit } : {}) });
         setNotice("History URL loaded · choose a retention period and save the rule");
       } catch { setNotice("Chrome did not provide a valid history URL"); }
       setPendingRuleUrl("");
@@ -120,7 +131,7 @@ function Dashboard() {
         </>}
 
         {view === "rules" && <div className="grid items-start gap-6 xl:grid-cols-[.9fr_1.35fr]">
-          <form className="card p-6" onSubmit={saveRule}><h3 className="mt-0 text-lg font-extrabold">{editingId ? 'Edit rule' : 'New rule'}</h3><div className="space-y-4"><label><span className="label">Rule name</span><input required className="field" value={draft.name} onChange={e => setDraft({...draft,name:e.target.value})} placeholder="Sensitive searches" /></label><label><span className="label">Match type</span><select className="field" value={draft.kind} onChange={e => setDraft({...draft,kind:e.target.value as RuleKind})}><option value="domain">Domain</option><option value="exact">Exact URL</option><option value="wildcard">Wildcard</option><option value="regex">Regular expression</option></select></label><label><span className="label">Pattern</span><input required className="field" value={draft.pattern} onChange={e => setDraft({...draft,pattern:e.target.value})} placeholder={draft.kind === 'domain' ? 'example.com' : 'https://example.com/*'} /></label><div className="grid grid-cols-2 gap-3"><label><span className="label">Keep for</span><input required min="1" type="number" className="field" value={draft.duration} onChange={e => setDraft({...draft,duration:Number(e.target.value)})} /></label><label><span className="label">Unit</span><select className="field" value={draft.unit} onChange={e => setDraft({...draft,unit:e.target.value as TimeUnit})}><option value="minutes">Minutes</option><option value="hours">Hours</option><option value="days">Days</option></select></label></div><label><span className="label">Priority (higher wins)</span><input type="number" className="field" value={draft.priority} onChange={e => setDraft({...draft,priority:Number(e.target.value)})} /></label>{!editingId && <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#f0cfbd] bg-[#fff7f1] p-4 dark:border-[#694331] dark:bg-[#2a201b]"><input className="mt-1 h-4 w-4 accent-[#a94f1c]" type="checkbox" checked={deleteExisting} onChange={e=>setDeleteExisting(e.target.checked)}/><span><strong className="block text-sm">Delete existing matching history now</strong><span className="muted mt-1 block text-xs">Permanently removes every existing URL matched by this rule immediately after creation. You will be asked to confirm.</span></span></label>}<div className="flex gap-2"><button className="btn-primary flex-1" type="submit">Save rule</button>{editingId && <button type="button" className="btn-secondary" onClick={() => {setEditingId(undefined);setDraft(EMPTY_RULE)}}>Cancel</button>}</div></div></form>
+          <form className="card p-6" onSubmit={saveRule}><h3 className="mt-0 text-lg font-extrabold">{editingId ? 'Edit rule' : 'New rule'}</h3><div className="space-y-4"><label><span className="label">Rule name</span><input required className="field" value={draft.name} onChange={e => setDraft({...draft,name:e.target.value})} placeholder="Sensitive searches" /></label><label><span className="label">Category preset</span><select className="field" value={draft.category ?? ""} onChange={e => applyCategory((e.target.value || undefined) as CategoryId | undefined)}><option value="">Uncategorized</option>{CATEGORY_PRESETS.map(preset => <option value={preset.id} key={preset.id}>{preset.label} · {preset.duration} {preset.unit}</option>)}</select>{draft.category && <span className="muted mt-1 block text-xs">{getCategoryPreset(draft.category)?.description} You can still customize the retention period.</span>}</label><label><span className="label">Match type</span><select className="field" value={draft.kind} onChange={e => setDraft({...draft,kind:e.target.value as RuleKind})}><option value="domain">Domain</option><option value="exact">Exact URL</option><option value="wildcard">Wildcard</option><option value="regex">Regular expression</option></select></label><label><span className="label">Pattern</span><input required className="field" value={draft.pattern} onChange={e => setDraft({...draft,pattern:e.target.value})} onBlur={suggestDraftCategory} placeholder={draft.kind === 'domain' ? 'example.com' : 'https://example.com/*'} /></label><div className="grid grid-cols-2 gap-3"><label><span className="label">Keep for</span><input required min="1" type="number" className="field" value={draft.duration} onChange={e => setDraft({...draft,duration:Number(e.target.value)})} /></label><label><span className="label">Unit</span><select className="field" value={draft.unit} onChange={e => setDraft({...draft,unit:e.target.value as TimeUnit})}><option value="minutes">Minutes</option><option value="hours">Hours</option><option value="days">Days</option></select></label></div><label><span className="label">Priority (higher wins)</span><input type="number" className="field" value={draft.priority} onChange={e => setDraft({...draft,priority:Number(e.target.value)})} /></label>{!editingId && <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#f0cfbd] bg-[#fff7f1] p-4 dark:border-[#694331] dark:bg-[#2a201b]"><input className="mt-1 h-4 w-4 accent-[#a94f1c]" type="checkbox" checked={deleteExisting} onChange={e=>setDeleteExisting(e.target.checked)}/><span><strong className="block text-sm">Delete existing matching history now</strong><span className="muted mt-1 block text-xs">Permanently removes every existing URL matched by this rule immediately after creation. You will be asked to confirm.</span></span></label>}<div className="flex gap-2"><button className="btn-primary flex-1" type="submit">Save rule</button>{editingId && <button type="button" className="btn-secondary" onClick={() => {setEditingId(undefined);setDraft(EMPTY_RULE)}}>Cancel</button>}</div></div></form>
           <section className="space-y-3">{rules.length === 0 ? <div className="card p-8 text-center"><h3>No rules yet</h3><p className="muted">Add your first retention rule to begin.</p></div> : rules.map(rule => <article className="card flex items-center gap-4 p-5" key={rule.id}><button aria-label={`${rule.enabled ? 'Disable' : 'Enable'} ${rule.name}`} className={`toggle shrink-0 ${rule.enabled?'on':''}`} onClick={() => persistRules(rules.map(item => item.id === rule.id ? {...item,enabled:!item.enabled}:item))}/><div className="min-w-0 flex-1"><h3 className="m-0 truncate text-base font-extrabold">{rule.name}</h3></div><button className="btn-secondary" onClick={() => editRule(rule)}>Edit</button><button className="btn-danger" onClick={() => confirm(`Delete “${rule.name}”?`) && void persistRules(rules.filter(item => item.id !== rule.id))}>Delete</button></article>)}</section>
         </div>}
 

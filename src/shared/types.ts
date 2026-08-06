@@ -1,5 +1,6 @@
 export type RuleKind = "exact" | "domain" | "wildcard" | "regex";
 export type TimeUnit = "minutes" | "hours" | "days";
+export type CategoryId = "social" | "shopping" | "news" | "streaming" | "search" | "travel" | "entertainment";
 
 export interface RetentionRule {
   id: string;
@@ -10,6 +11,7 @@ export interface RetentionRule {
   unit: TimeUnit;
   enabled: boolean;
   priority: number;
+  category?: CategoryId;
   createdAt: number;
 }
 

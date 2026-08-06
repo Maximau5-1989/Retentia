@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.0 — 2026-08-06
+
+- Added local opt-in category presets for social media, webshops, news, streaming, search engines, travel, and entertainment and gaming.
+
 ## 1.0.9 — 2026-08-06
 
 - Added automated GitHub Actions quality checks for every push and pull request.

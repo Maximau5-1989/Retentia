@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.8 — 2026-08-06
+
+- Added automated semantic versioning and release preparation.
+
 ## 1.0.7 — 2026-08-06
 
 - Fixed the light-mode contrast of the onboarding headline and **Got it** button.

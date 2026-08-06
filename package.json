@@ -1,13 +1,17 @@
 {
   "name": "retentia",
   "private": true,
-  "version": "1.0.7",
+  "version": "1.0.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
-    "check": "npm run test && npm run build"
+    "check": "pnpm run test && pnpm run build",
+    "release:patch": "node scripts/release.mjs patch",
+    "release:minor": "node scripts/release.mjs minor",
+    "release:major": "node scripts/release.mjs major",
+    "release:dry-run": "node scripts/release.mjs patch --dry-run"
   },
   "dependencies": {
     "react": "^19.2.8",

@@ -26,6 +26,24 @@ pnpm build
 
 Load `dist` through `chrome://extensions` → **Developer mode** → **Load unpacked**.
 
+### Preparing a release
+
+Preview the next patch version without changing files:
+
+```powershell
+pnpm run release:dry-run
+```
+
+Prepare a patch, minor, or major release with a concise changelog entry:
+
+```powershell
+pnpm run release:patch -- --notes "Describe the completed change."
+pnpm run release:minor -- --notes "Describe the completed feature set."
+pnpm run release:major -- --notes "Describe the breaking change."
+```
+
+The release command synchronizes `package.json` and `public/manifest.json`, updates `CHANGELOG.md`, runs all tests and the production build, creates the versioned ZIP archive, and creates an annotated Git tag. Add `--no-commit` to skip the Git commit and tag.
+
 ## Privacy
 
 Retentia uses the Chrome History API and local extension storage. It has no host permissions, analytics, remote services, or account system.

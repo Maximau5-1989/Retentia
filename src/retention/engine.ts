@@ -24,7 +24,7 @@ export async function scanHistoryCategories(): Promise<CategoryScanResult> {
 export async function deleteHistoryMatchingRule(rule: RetentionRule): Promise<number> {
   const [settings, overrides, protectedDomains] = await Promise.all([storage.getSettings(), storage.getCategoryOverrides(), storage.getProtectedDomains()]);
   const history = await chrome.history.search({ text: "", startTime: 0, maxResults: 100_000 });
-  const matchingUrls = [...new Set(history.flatMap((item) => item.url && !isProtectedUrl(item.url, protectedDomains) && matchesRule(item.url, rule, overrides) ? [item.url] : []))];
+  const matchingUrls = [...new Set(history.flatMap((item) => item.url && !isProtectedUrl(item.url, protectedDomains) && matchesRule({ url: item.url, title: item.title }, rule, overrides) ? [item.url] : []))];
   for (const url of matchingUrls) {
     await chrome.history.deleteUrl({ url });
   }
@@ -43,7 +43,7 @@ export async function scanHistory(deleteExpired = false, forceDelete = false): P
 
   for (const item of history) {
     if (!item.url || !item.lastVisitTime || isProtectedUrl(item.url, protectedDomains)) continue;
-    const rule = findWinningRule(item.url, rules, overrides);
+    const rule = findWinningRule({ url: item.url, title: item.title }, rules, overrides);
     if (!rule) continue;
     const expiresAt = getExpirationTime(item.lastVisitTime, rule);
     candidates.push({
@@ -83,7 +83,7 @@ export async function cleanExpiredForRule(rule: RetentionRule): Promise<number> 
   const now = Date.now();
   const history = await chrome.history.search({ text: "", startTime: 0, maxResults: 100_000 });
   const expiredUrls = [...new Set(history.flatMap((item) => {
-    if (!item.url || !item.lastVisitTime || isProtectedUrl(item.url, protectedDomains) || !matchesRule(item.url, rule, overrides)) return [];
+    if (!item.url || !item.lastVisitTime || isProtectedUrl(item.url, protectedDomains) || !matchesRule({ url: item.url, title: item.title }, rule, overrides)) return [];
     return getExpirationTime(item.lastVisitTime, rule) <= now ? [item.url] : [];
   }))];
   for (const url of expiredUrls) await chrome.history.deleteUrl({ url });
@@ -94,7 +94,7 @@ export async function cleanExpiredForRule(rule: RetentionRule): Promise<number> 
   return expiredUrls.length;
 }
 
-export async function deleteVisitedUrlImmediately(url: string): Promise<boolean> {
+export async function deleteVisitedUrlImmediately(url: string, title = ""): Promise<boolean> {
   const [rules, settings, overrides, protectedDomains] = await Promise.all([
     storage.getRules(),
     storage.getSettings(),
@@ -103,7 +103,7 @@ export async function deleteVisitedUrlImmediately(url: string): Promise<boolean>
   ]);
   if (!settings.enabled || isProtectedUrl(url, protectedDomains)) return false;
 
-  const rule = findWinningRule(url, rules, overrides);
+  const rule = findWinningRule({ url, title }, rules, overrides);
   if (!rule?.deleteImmediately) return false;
 
   await chrome.history.deleteUrl({ url });

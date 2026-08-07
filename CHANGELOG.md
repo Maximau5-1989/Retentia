@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.0 — 2026-08-07
+
+- Added a privacy-first local classification engine that combines domains, URL structure, and stored page titles, exposes uncertain matches for review, and keeps every category visible in scanner results.
+
 ## 1.5.1 — 2026-08-07
 
 - Added an optional privacy-first 18+ category with local domain recognition, a disabled immediate-deletion rule, scanner support, category overrides, and backup compatibility.

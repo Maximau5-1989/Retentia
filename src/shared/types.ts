@@ -76,6 +76,9 @@ export interface CategoryScanDomain {
   urls: number;
   visits: number;
   overridden: boolean;
+  confidence: "high" | "medium" | "none";
+  score: number;
+  suggestedCategory?: CategoryId;
 }
 
 export type CategoryOverrides = Record<string, CategoryId>;

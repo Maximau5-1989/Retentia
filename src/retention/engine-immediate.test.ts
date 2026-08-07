@@ -54,4 +54,15 @@ describe("immediate history removal", () => {
     await expect(deleteVisitedUrlImmediately("https://private.example/account")).resolves.toBe(false);
     expect(deleteUrl).not.toHaveBeenCalled();
   });
+
+  it("can apply an immediate category rule from high-confidence local signals", async () => {
+    vi.mocked(storage.getRules).mockResolvedValue([{
+      ...immediateRule,
+      kind: "category",
+      pattern: "adult",
+      category: "adult",
+    }]);
+    await expect(deleteVisitedUrlImmediately("https://media.example/adult/videos", "Free porn videos")).resolves.toBe(true);
+    expect(deleteUrl).toHaveBeenCalledWith({ url: "https://media.example/adult/videos" });
+  });
 });

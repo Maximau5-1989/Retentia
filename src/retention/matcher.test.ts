@@ -26,6 +26,11 @@ describe("rule matcher", () => {
   it("converts durations to milliseconds", () => {
     expect(durationToMs({ duration: 2, unit: "hours" })).toBe(7_200_000);
   });
+  it("uses URL and stored-title signals only for high-confidence category matches", () => {
+    const categoryRule = rule({ kind: "category", pattern: "adult", category: "adult" });
+    expect(matchesRule({ url: "https://media.example/adult/videos", title: "Free porn videos" }, categoryRule)).toBe(true);
+    expect(matchesRule({ url: "https://example.com/adult", title: "Adult area" }, categoryRule)).toBe(false);
+  });
   it("expires immediate rules at the visit time", () => {
     expect(getExpirationTime(123, rule({ deleteImmediately: true }))).toBe(123);
     expect(getExpirationTime(123, rule({ duration: 2, unit: "hours" }))).toBe(7_200_123);

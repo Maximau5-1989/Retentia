@@ -39,9 +39,9 @@ async function runSafely(): Promise<void> {
   }
 }
 
-async function deleteImmediatelySafely(url: string): Promise<void> {
+async function deleteImmediatelySafely(url: string, title = ""): Promise<void> {
   try {
-    await deleteVisitedUrlImmediately(url);
+    await deleteVisitedUrlImmediately(url, title);
   } catch {
     const settings = await storage.getSettings();
     await storage.addActivity({
@@ -69,7 +69,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   if (tabId === await sessionStorage.getDashboardTabId()) await sessionStorage.lock();
 });
 chrome.alarms.onAlarm.addListener((alarm) => { if (alarm.name === ALARM_NAME) void runSafely(); });
-chrome.history.onVisited.addListener((item) => { if (item.url) void deleteImmediatelySafely(item.url); });
+chrome.history.onVisited.addListener((item) => { if (item.url) void deleteImmediatelySafely(item.url, item.title); });
 chrome.storage.onChanged.addListener((changes) => { if (changes.settings) void configureAlarm(); });
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "REGISTER_DASHBOARD_TAB" && _sender.tab?.id !== undefined) {

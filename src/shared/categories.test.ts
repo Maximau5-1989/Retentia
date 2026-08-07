@@ -1,38 +1,69 @@
 import { describe, expect, it } from "vitest";
-import { categorizeHistoryEntries, normalizeHostname, resolveCategory, suggestCategory } from "./categories";
+import { CATEGORY_PRESETS, categorizeHistoryEntries, classifyCategory, normalizeHostname, resolveCategory, suggestCategory } from "./categories";
 
-describe("category suggestions", () => {
-  it("recognizes known domains and their subdomains", () => {
+describe("local category classifier", () => {
+  it("recognizes known domains and their subdomains with high confidence", () => {
     expect(suggestCategory("https://www.youtube.com/watch?v=1")?.id).toBe("streaming");
     expect(suggestCategory("news.bbc.com")?.id).toBe("news");
-    expect(suggestCategory("https://www.pornhub.com/view_video.php")?.id).toBe("adult");
+    expect(classifyCategory("https://www.pornhub.com/view_video.php")).toMatchObject({
+      category: "adult",
+      confidence: "high",
+      source: "domain",
+    });
   });
 
-  it("does not guess a category for unknown domains", () => {
+  it("combines URL structure and the stored title without opening the page", () => {
+    expect(classifyCategory("https://media.example/adult/123", "Free porn videos")).toMatchObject({
+      category: "adult",
+      confidence: "high",
+      source: "signals",
+    });
+    expect(resolveCategory("https://media.example/adult/123", {}, "Free porn videos")).toBe("adult");
+  });
+
+  it("returns uncertain matches as suggestions instead of automatic categories", () => {
+    const result = classifyCategory("https://example.com/adult", "Adult area");
+    expect(result).toMatchObject({
+      suggestedCategory: "adult",
+      confidence: "medium",
+    });
+    expect(result.category).toBeUndefined();
+  });
+
+  it("does not classify weak or misleading text", () => {
     expect(suggestCategory("https://example.com/products")).toBeUndefined();
+    expect(classifyCategory("https://sussex.example/about", "University information").category).toBeUndefined();
   });
 
-  it("normalizes URLs without exposing page content", () => {
+  it("normalizes URLs without returning path or query content", () => {
     expect(normalizeHostname("WWW.GOOGLE.NL/search?q=private")).toBe("google.nl");
   });
 
-  it("aggregates category totals without retaining URLs", () => {
+  it("always returns every category and keeps possible matches uncategorized", () => {
     const buckets = categorizeHistoryEntries([
-      { url: "https://youtube.com/watch?v=private", visitCount: 3 },
-      { url: "https://nos.nl/article/1", visitCount: 2 },
-      { url: "https://unknown.example/private", visitCount: 1 },
+      { url: "https://youtube.com/watch?v=private", title: "Video", visitCount: 3 },
+      { url: "https://nos.nl/article/1", title: "News", visitCount: 2 },
+      { url: "https://example.com/adult", title: "Adult area", visitCount: 1 },
     ]);
-    expect(buckets).toEqual([
-      { category: "news", urls: 1, visits: 2, domains: [{ domain: "nos.nl", urls: 1, visits: 2, overridden: false }] },
-      { category: "streaming", urls: 1, visits: 3, domains: [{ domain: "youtube.com", urls: 1, visits: 3, overridden: false }] },
-      { category: undefined, urls: 1, visits: 1, domains: [{ domain: "unknown.example", urls: 1, visits: 1, overridden: false }] },
-    ]);
+    expect(buckets).toHaveLength(CATEGORY_PRESETS.length + 1);
+    expect(buckets.filter((bucket) => bucket.category).map((bucket) => bucket.category)).toEqual(CATEGORY_PRESETS.map((preset) => preset.id));
+    expect(buckets.find((bucket) => bucket.category === "adult")?.urls).toBe(0);
+    expect(buckets.find((bucket) => !bucket.category)?.domains[0]).toMatchObject({
+      domain: "example.com",
+      suggestedCategory: "adult",
+      confidence: "medium",
+    });
     expect(JSON.stringify(buckets)).not.toContain("private");
+    expect(JSON.stringify(buckets)).not.toContain("Adult area");
   });
 
-  it("lets local overrides move a domain into another category", () => {
+  it("lets local overrides take precedence over every classifier signal", () => {
     expect(resolveCategory("youtube.com", { "youtube.com": "entertainment" })).toBe("entertainment");
-    expect(categorizeHistoryEntries([{ url: "https://youtube.com/watch", visitCount: 1 }], { "youtube.com": "entertainment" })[0].domains[0].overridden).toBe(true);
+    const bucket = categorizeHistoryEntries(
+      [{ url: "https://media.example/adult/videos", title: "Porn videos", visitCount: 1 }],
+      { "media.example": "news" },
+    ).find((item) => item.category === "news");
+    expect(bucket?.domains[0]).toMatchObject({ domain: "media.example", overridden: true, confidence: "high" });
   });
 
   it("keeps the 18+ preset opt-in and configured for immediate deletion", () => {

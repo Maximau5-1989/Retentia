@@ -2,12 +2,16 @@ import type { RetentionRule } from "../shared/types";
 import type { CategoryOverrides } from "../shared/types";
 import { resolveCategory } from "../shared/categories";
 
+export type RuleMatchInput = string | { url: string; title?: string };
+
 export function wildcardToRegExp(pattern: string): RegExp {
   const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
   return new RegExp(`^${escaped}$`, "i");
 }
 
-export function matchesRule(url: string, rule: RetentionRule, categoryOverrides: CategoryOverrides = {}): boolean {
+export function matchesRule(candidate: RuleMatchInput, rule: RetentionRule, categoryOverrides: CategoryOverrides = {}): boolean {
+  const url = typeof candidate === "string" ? candidate : candidate.url;
+  const title = typeof candidate === "string" ? "" : candidate.title ?? "";
   if (!rule.enabled || !url) return false;
   try {
     switch (rule.kind) {
@@ -19,7 +23,7 @@ export function matchesRule(url: string, rule: RetentionRule, categoryOverrides:
         return hostname === domain || hostname.endsWith(`.${domain}`);
       }
       case "category":
-        return resolveCategory(url, categoryOverrides) === rule.pattern;
+        return resolveCategory(url, categoryOverrides, title) === rule.pattern;
       case "wildcard":
         return wildcardToRegExp(rule.pattern).test(url);
       case "regex":
@@ -30,8 +34,8 @@ export function matchesRule(url: string, rule: RetentionRule, categoryOverrides:
   }
 }
 
-export function findWinningRule(url: string, rules: RetentionRule[], categoryOverrides: CategoryOverrides = {}): RetentionRule | undefined {
-  return [...rules].sort((a, b) => b.priority - a.priority || a.createdAt - b.createdAt).find((rule) => matchesRule(url, rule, categoryOverrides));
+export function findWinningRule(candidate: RuleMatchInput, rules: RetentionRule[], categoryOverrides: CategoryOverrides = {}): RetentionRule | undefined {
+  return [...rules].sort((a, b) => b.priority - a.priority || a.createdAt - b.createdAt).find((rule) => matchesRule(candidate, rule, categoryOverrides));
 }
 
 export function durationToMs(rule: Pick<RetentionRule, "duration" | "unit">): number {

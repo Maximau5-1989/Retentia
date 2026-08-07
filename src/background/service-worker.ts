@@ -84,8 +84,9 @@ chrome.contextMenus.onClicked.addListener((info) => {
       ? "addToRule"
       : undefined;
   if (!action) return;
-  const target = chrome.runtime.getURL(`dashboard.html?${action}=${encodeURIComponent(info.linkUrl)}`);
-  void chrome.tabs.create({ url: target });
+  const target = new URL(chrome.runtime.getURL("dashboard.html"));
+  target.searchParams.set(action, info.linkUrl);
+  void chrome.tabs.create({ url: target.href });
 });
 chrome.tabs.onRemoved.addListener(async (tabId) => {
   if (tabId === await sessionStorage.getDashboardTabId()) await sessionStorage.lock();

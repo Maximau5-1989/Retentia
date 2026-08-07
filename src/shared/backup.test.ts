@@ -64,13 +64,14 @@ describe("Retentia backups", () => {
     expect(parseBackup(JSON.stringify(adultBackup)).categoryOverrides).toEqual({ "private.example": "adult" });
   });
 
-  it("preserves additional exact URLs attached to existing rules", () => {
+  it("preserves additional URLs and domains attached to existing rules", () => {
     const ruleWithAdditionalUrl: RetentionRule = {
       id: "grouped",
       name: "Grouped rule",
       kind: "domain",
       pattern: "example.com",
       additionalUrls: ["https://another.example/private"],
+      additionalDomains: ["another.example"],
       duration: 7,
       unit: "days",
       enabled: true,
@@ -85,5 +86,6 @@ describe("Retentia backups", () => {
       protectedDomains: backup.protectedDomains,
     });
     expect(parseBackup(JSON.stringify(groupedBackup)).rules[0].additionalUrls).toEqual(["https://another.example/private"]);
+    expect(parseBackup(JSON.stringify(groupedBackup)).rules[0].additionalDomains).toEqual(["another.example"]);
   });
 });

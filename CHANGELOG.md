@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.3 — 2026-08-07
+
+- Added manual domain and exact-URL attachments for existing built-in and custom rules, with a more robust Chrome History handoff.
+
 ## 1.6.2 — 2026-08-07
 
 - Added dedicated review panels for possible category matches and a disabled-by-default Testing mode that temporarily bypasses password prompts without removing password protection.

@@ -12,6 +12,7 @@ export interface RetentionRule {
   enabled: boolean;
   deleteImmediately?: boolean;
   additionalUrls?: string[];
+  additionalDomains?: string[];
   priority: number;
   category?: CategoryId;
   createdAt: number;

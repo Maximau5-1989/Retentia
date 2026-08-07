@@ -1,6 +1,7 @@
 import type { RetentionRule } from "../shared/types";
 import type { CategoryOverrides } from "../shared/types";
 import { resolveCategory } from "../shared/categories";
+import { matchesManualTarget } from "./manual-targets";
 
 export type RuleMatchInput = string | { url: string; title?: string };
 
@@ -14,7 +15,7 @@ export function matchesRule(candidate: RuleMatchInput, rule: RetentionRule, cate
   const title = typeof candidate === "string" ? "" : candidate.title ?? "";
   if (!rule.enabled || !url) return false;
   try {
-    if (rule.additionalUrls?.includes(url)) return true;
+    if (matchesManualTarget(url, rule)) return true;
     switch (rule.kind) {
       case "exact":
         return url === rule.pattern;

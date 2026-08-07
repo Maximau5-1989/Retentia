@@ -5,6 +5,8 @@ import { ThemeButton } from "../components/ThemeButton";
 import { ChangePassword } from "../components/ChangePassword";
 import { cleanExpiredForRule, deleteHistoryMatchingRule, scanHistory, scanHistoryCategories } from "../retention/engine";
 import { detectRuleConflicts } from "../retention/conflicts";
+import { addManualTarget, normalizeHttpUrl, removeManualTarget } from "../retention/manual-targets";
+import type { ManualTargetKind } from "../retention/manual-targets";
 import { normalizeProtectedDomain } from "../retention/protection";
 import { formatDate, shortenUrl } from "../shared/format";
 import { sessionStorage, storage } from "../shared/storage";
@@ -66,6 +68,10 @@ function Dashboard() {
   const [categoryOverrides, setCategoryOverrides] = useState<CategoryOverrides>({});
   const [protectedDomains, setProtectedDomains] = useState<string[]>([]);
   const [protectedDraft, setProtectedDraft] = useState("");
+  const [manualRuleId, setManualRuleId] = useState("");
+  const [manualTargetKind, setManualTargetKind] = useState<ManualTargetKind>("domain");
+  const [manualTargetDraft, setManualTargetDraft] = useState("");
+  const [historyTargetKind, setHistoryTargetKind] = useState<ManualTargetKind>("url");
 
   async function refresh() {
     await storage.sanitizePrivacyData();
@@ -77,6 +83,7 @@ function Dashboard() {
     if (accessGranted) {
       const [loadedRules, loadedOverrides, loadedProtected] = await Promise.all([loadRulesWithDefaults(), storage.getCategoryOverrides(), storage.getProtectedDomains()]);
       setRules(loadedRules); setCategoryOverrides(loadedOverrides); setProtectedDomains(loadedProtected);
+      setManualRuleId((current) => current || loadedRules[0]?.id || "");
       await chrome.runtime.sendMessage({ type: "REGISTER_DASHBOARD_TAB" });
       applyPendingRuleUrl();
     }
@@ -87,21 +94,43 @@ function Dashboard() {
   }, []);
 
   async function persistRules(next: RetentionRule[]) { setRules(next); await storage.setRules(next); }
+  async function attachTargetToRule(ruleId: string, kind: ManualTargetKind, input: string) {
+    const selectedRule = rules.find((rule) => rule.id === ruleId);
+    if (!selectedRule) throw new Error("Choose an existing rule");
+    const update = addManualTarget(selectedRule, kind, input);
+    if (!update.alreadyExists) {
+      await persistRules(rules.map((rule) => rule.id === ruleId ? update.rule : rule));
+    }
+    return { ...update, ruleName: selectedRule.name };
+  }
   async function addPendingUrlToExistingRule(ruleId: string) {
     if (!pendingAddToRuleUrl) return;
     try {
-      const parsed = new URL(pendingAddToRuleUrl);
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("Unsupported history URL");
-      const selectedRule = rules.find((rule) => rule.id === ruleId);
-      if (!selectedRule) throw new Error("The selected rule no longer exists");
-      const additionalUrls = [...new Set([...(selectedRule.additionalUrls ?? []), pendingAddToRuleUrl])];
-      const alreadyIncluded = additionalUrls.length === (selectedRule.additionalUrls?.length ?? 0);
-      await persistRules(rules.map((rule) => rule.id === ruleId ? { ...rule, additionalUrls } : rule));
+      const update = await attachTargetToRule(ruleId, historyTargetKind, pendingAddToRuleUrl);
       setPendingAddToRuleUrl("");
-      setNotice(alreadyIncluded ? `This URL is already part of ${selectedRule.name}` : `History URL added to ${selectedRule.name}`);
+      const targetLabel = historyTargetKind === "url" ? "URL" : "Domain";
+      setNotice(update.alreadyExists ? `This ${targetLabel.toLowerCase()} is already part of ${update.ruleName}` : `${targetLabel} added to ${update.ruleName}`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Chrome did not provide a valid history URL");
     }
+  }
+  async function addManualWebsite(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      const update = await attachTargetToRule(manualRuleId, manualTargetKind, manualTargetDraft);
+      const targetLabel = manualTargetKind === "url" ? "URL" : "Domain";
+      setNotice(update.alreadyExists ? `This ${targetLabel.toLowerCase()} is already part of ${update.ruleName}` : `${targetLabel} added to ${update.ruleName}`);
+      if (!update.alreadyExists) setManualTargetDraft("");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Website could not be added");
+    }
+  }
+  async function detachTargetFromRule(ruleId: string, kind: ManualTargetKind, target: string) {
+    const selectedRule = rules.find((rule) => rule.id === ruleId);
+    if (!selectedRule) return;
+    const updatedRule = removeManualTarget(selectedRule, kind, target);
+    await persistRules(rules.map((rule) => rule.id === ruleId ? updatedRule : rule));
+    setNotice(`${kind === "url" ? "URL" : "Domain"} removed from ${selectedRule.name}`);
   }
   function applyCategory(category?: CategoryId) {
     const preset = getCategoryPreset(category);
@@ -232,9 +261,10 @@ function Dashboard() {
   function applyPendingRuleUrl() {
     if (pendingRuleUrl) {
       try {
-        const parsed = new URL(pendingRuleUrl);
+        const normalizedUrl = normalizeHttpUrl(pendingRuleUrl);
+        const parsed = new URL(normalizedUrl);
         const preset = suggestCategory(parsed.hostname);
-        setDraft({ ...EMPTY_RULE, name: parsed.hostname, kind: "exact", pattern: pendingRuleUrl, ...(preset ? { category: preset.id, duration: preset.duration, unit: preset.unit } : {}) });
+        setDraft({ ...EMPTY_RULE, name: parsed.hostname, kind: "exact", pattern: normalizedUrl, ...(preset ? { category: preset.id, duration: preset.duration, unit: preset.unit } : {}) });
         setNotice("History URL loaded · choose a retention period and save the rule");
       } catch { setNotice("Chrome did not provide a valid history URL"); }
       setPendingRuleUrl("");
@@ -245,6 +275,7 @@ function Dashboard() {
     await sessionStorage.unlock();
     const [loadedRules, loadedOverrides, loadedProtected] = await Promise.all([loadRulesWithDefaults(), storage.getCategoryOverrides(), storage.getProtectedDomains()]);
     setRules(loadedRules); setCategoryOverrides(loadedOverrides); setProtectedDomains(loadedProtected);
+    setManualRuleId((current) => current || loadedRules[0]?.id || "");
     setAppUnlocked(true);
     await chrome.runtime.sendMessage({ type: "REGISTER_DASHBOARD_TAB" });
     applyPendingRuleUrl();
@@ -263,6 +294,7 @@ function Dashboard() {
   const enabledRules = rules.filter((rule) => rule.enabled).length;
   const ruleConflicts = detectRuleConflicts(rules, categoryOverrides);
   const deletedCount = activity.filter((entry) => entry.type === "deleted").reduce((total, entry) => total + (entry.count ?? 0), 0);
+  const selectedManualRule = rules.find((rule) => rule.id === manualRuleId);
 
   if (!settings) return <div className="p-8">Loading Retentia…</div>;
   return <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#edf7e7,transparent_34%),#f5f7f3]">
@@ -292,7 +324,11 @@ function Dashboard() {
 
         {view === "categories" && <section className="mt-6"><h3 className="mb-4 text-lg font-extrabold">Manage categories separately</h3><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{CATEGORY_PRESETS.map(preset => { const categoryRule=rules.find(rule => rule.kind === 'category' && rule.pattern === preset.id); const immediate=categoryRule?.deleteImmediately ?? preset.deleteImmediately; return <article className="card p-5" key={`control-${preset.id}`}><div className="flex items-start justify-between gap-3"><div><h4 className="m-0 font-extrabold">{preset.label}</h4><p className="muted mb-0 mt-1 text-xs">{immediate ? 'Remove immediately after visit' : `Keep for ${categoryRule?.duration ?? preset.duration} ${categoryRule?.unit ?? preset.unit}`}</p></div><button aria-label={`Toggle ${preset.label}`} className={`toggle ${categoryRule?.enabled ? 'on' : ''}`} onClick={() => void toggleCategoryRule(preset.id)}/></div><button className="btn-danger mt-4 w-full" onClick={() => void cleanCategory(preset.id)}>{immediate ? 'Activate & clean matching' : 'Activate & clean expired'}</button></article>})}</div></section>}
 
-        {view === "rules" && pendingAddToRuleUrl && <section className="card mb-6 border-[#b9d9aa] p-6"><div className="flex flex-wrap items-start justify-between gap-4"><div><h3 className="m-0 text-lg font-extrabold">Add history URL to an existing rule</h3><p className="muted mb-0 mt-1 text-sm">Choose a rule below. Retentia stores the selected history URL locally as an additional exact match and applies that rule's existing timing and enabled state.</p></div><button className="btn-secondary" onClick={() => setPendingAddToRuleUrl("")}>Cancel</button></div><div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{rules.map(rule => <button className="rounded-xl border border-[#dce7d6] bg-[#f7faf5] p-4 text-left hover:border-[#82c950] dark:border-[#334658] dark:bg-[#152332]" key={`add-to-${rule.id}`} onClick={() => void addPendingUrlToExistingRule(rule.id)}><strong className="block truncate">{rule.name}</strong><span className="muted mt-1 block text-xs">{rule.enabled ? 'Enabled' : 'Disabled'} · {rule.deleteImmediately ? 'Immediate deletion' : `Keep for ${rule.duration} ${rule.unit}`}</span></button>)}</div></section>}
+        {view === "rules" && pendingAddToRuleUrl && <section className="card mb-6 border-[#b9d9aa] p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4"><div><h3 className="m-0 text-lg font-extrabold">Add history website to an existing rule</h3><p className="muted mb-0 mt-1 text-sm">Choose whether this specific URL or its complete domain should inherit an existing rule's timing and enabled state.</p></div><button className="btn-secondary" onClick={() => setPendingAddToRuleUrl("")}>Cancel</button></div>
+          <label className="mt-5 block max-w-sm"><span className="label">Website match</span><select className="field" value={historyTargetKind} onChange={event => setHistoryTargetKind(event.target.value as ManualTargetKind)}><option value="url">This specific URL</option><option value="domain">Complete domain</option></select></label>
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{rules.map(rule => <button className="rounded-xl border border-[#dce7d6] bg-[#f7faf5] p-4 text-left hover:border-[#82c950] dark:border-[#334658] dark:bg-[#152332]" key={`add-to-${rule.id}`} onClick={() => void addPendingUrlToExistingRule(rule.id)}><strong className="block truncate">{rule.name}</strong><span className="muted mt-1 block text-xs">{rule.enabled ? 'Enabled' : 'Disabled'} · {rule.deleteImmediately ? 'Immediate deletion' : `Keep for ${rule.duration} ${rule.unit}`}</span></button>)}</div>
+        </section>}
 
         {view === "rules" && ruleConflicts.length > 0 && <section className="card mb-6 border-amber-300 bg-amber-50 p-6 dark:border-amber-700 dark:bg-amber-950"><h3 className="mt-0 text-lg font-extrabold">Rule conflicts detected</h3><p className="muted text-sm">Retentia always uses the highest priority. If priorities match, the oldest rule wins.</p><div className="space-y-3">{ruleConflicts.map(conflict => <div className="rounded-xl border border-amber-200 bg-white/70 p-4 text-sm dark:border-amber-800 dark:bg-black/20" key={`${conflict.first.id}-${conflict.second.id}`}><strong>{conflict.first.name}</strong> overlaps <strong>{conflict.second.name}</strong><p className="muted mb-0 mt-1 text-xs">{conflict.reason} Winner: {conflict.winner.name}.</p></div>)}</div></section>}
 
@@ -301,6 +337,7 @@ function Dashboard() {
         {view === "settings" && <section className="card mb-6 max-w-3xl p-7"><h3 className="mt-0 text-lg font-extrabold">Backup and restore</h3><p className="muted text-sm">Export rules, settings, category overrides, and protected websites. Passwords, activity totals, scan results, and browser history are never included.</p><div className="flex flex-wrap gap-3"><button className="btn-secondary" onClick={() => void exportBackup()}>Export backup</button><label className="btn-primary cursor-pointer">Restore backup<input className="hidden" type="file" accept="application/json,.json" onChange={event => { void importBackup(event.target.files?.[0]); event.target.value=''; }}/></label></div></section>}
 
         {view === "rules" && <div className="grid items-start gap-6 xl:grid-cols-[.9fr_1.35fr]">
+          <div className="space-y-6">
           <form className="card p-6" onSubmit={saveRule}>
             <h3 className="mt-0 text-lg font-extrabold">{editingId ? 'Edit rule' : 'New rule'}</h3>
             <div className="space-y-4">
@@ -315,6 +352,19 @@ function Dashboard() {
               <div className="flex gap-2"><button className="btn-primary flex-1" type="submit">Save rule</button>{editingId && <button type="button" className="btn-secondary" onClick={() => { setEditingId(undefined); setDraft(EMPTY_RULE); }}>Cancel</button>}</div>
             </div>
           </form>
+          <form className="card p-6" onSubmit={addManualWebsite}>
+            <h3 className="mt-0 text-lg font-extrabold">Add to existing rule</h3>
+            <p className="muted text-sm">Manually attach a complete domain or one specific URL to any rule, including Retentia's built-in category rules.</p>
+            <div className="space-y-4">
+              <label><span className="label">Existing rule</span><select required className="field" value={manualRuleId} onChange={event => setManualRuleId(event.target.value)}><option value="" disabled>Choose a rule</option>{rules.map(rule => <option value={rule.id} key={`manual-${rule.id}`}>{rule.name}</option>)}</select></label>
+              <label><span className="label">Website match</span><select className="field" value={manualTargetKind} onChange={event => setManualTargetKind(event.target.value as ManualTargetKind)}><option value="domain">Complete domain</option><option value="url">Specific URL</option></select></label>
+              <label><span className="label">{manualTargetKind === 'url' ? 'URL' : 'Domain or website URL'}</span><input required className="field" value={manualTargetDraft} onChange={event => setManualTargetDraft(event.target.value)} placeholder={manualTargetKind === 'url' ? 'https://example.com/private/page' : 'example.com'} /></label>
+              <p className="muted text-xs">The website uses the selected rule's current retention period, immediate-deletion setting, priority, and enabled state.</p>
+              <button className="btn-primary w-full" type="submit">Add to rule</button>
+              {selectedManualRule && ((selectedManualRule.additionalDomains?.length ?? 0) + (selectedManualRule.additionalUrls?.length ?? 0) > 0) && <div className="border-t border-[#e5eae2] pt-4 dark:border-[#2b3a4b]"><h4 className="mb-3 mt-0 text-sm font-extrabold">Manually attached websites</h4><div className="space-y-2">{selectedManualRule.additionalDomains?.map(domain => <div className="flex items-center gap-2 rounded-xl border border-[#e5eae2] px-3 py-2 dark:border-[#2b3a4b]" key={`domain-${domain}`}><span className="pill">Domain</span><span className="min-w-0 flex-1 truncate text-sm" title={domain}>{domain}</span><button className="btn-danger !px-3 !py-1" type="button" onClick={() => void detachTargetFromRule(selectedManualRule.id, 'domain', domain)}>Remove</button></div>)}{selectedManualRule.additionalUrls?.map(url => <div className="flex items-center gap-2 rounded-xl border border-[#e5eae2] px-3 py-2 dark:border-[#2b3a4b]" key={`url-${url}`}><span className="pill">URL</span><span className="min-w-0 flex-1 truncate text-sm" title={url}>{shortenUrl(url)}</span><button className="btn-danger !px-3 !py-1" type="button" onClick={() => void detachTargetFromRule(selectedManualRule.id, 'url', url)}>Remove</button></div>)}</div></div>}
+            </div>
+          </form>
+          </div>
           <section className="space-y-3">{rules.length === 0 ? <div className="card p-8 text-center"><h3>No rules yet</h3><p className="muted">Add your first retention rule to begin.</p></div> : rules.map(rule => <article className="card flex items-center gap-4 p-5" key={rule.id}><button aria-label={`${rule.enabled ? 'Disable' : 'Enable'} ${rule.name}`} className={`toggle shrink-0 ${rule.enabled?'on':''}`} onClick={() => persistRules(rules.map(item => item.id === rule.id ? {...item,enabled:!item.enabled}:item))}/><div className="min-w-0 flex-1"><h3 className="m-0 truncate text-base font-extrabold">{rule.name}</h3></div><button className="btn-secondary" onClick={() => editRule(rule)}>Edit</button><button className="btn-danger" onClick={() => confirm(`Delete “${rule.name}”?`) && void persistRules(rules.filter(item => item.id !== rule.id))}>Delete</button></article>)}</section>
         </div>}
 

@@ -13,6 +13,8 @@ export const storage = {
   setCategoryOverrides: (overrides: CategoryOverrides) => chrome.storage.local.set({ [STORAGE_KEYS.categoryOverrides]: overrides }),
   getProtectedDomains: () => getLocal<ProtectedDomains>(STORAGE_KEYS.protectedDomains, []),
   setProtectedDomains: (domains: ProtectedDomains) => chrome.storage.local.set({ [STORAGE_KEYS.protectedDomains]: domains }),
+  getDefaultCategoryRulesVersion: () => getLocal<number>(STORAGE_KEYS.defaultCategoryRulesVersion, 0),
+  setDefaultCategoryRulesVersion: (version: number) => chrome.storage.local.set({ [STORAGE_KEYS.defaultCategoryRulesVersion]: version }),
   async getSettings(): Promise<Settings> {
     return { ...DEFAULT_SETTINGS, ...(await getLocal<Partial<Settings>>(STORAGE_KEYS.settings, {})) };
   },
@@ -33,7 +35,7 @@ export const storage = {
   resetAuthThrottle: () => chrome.storage.local.set({ [STORAGE_KEYS.authThrottle]: { failedAttempts: 0, lockUntil: 0 } }),
   async resetProtectedData(): Promise<void> {
     const settings = await this.getSettings();
-    await chrome.storage.local.remove([STORAGE_KEYS.password, STORAGE_KEYS.rules, STORAGE_KEYS.activity, STORAGE_KEYS.lastScan, STORAGE_KEYS.authThrottle, STORAGE_KEYS.categoryOverrides, STORAGE_KEYS.protectedDomains]);
+    await chrome.storage.local.remove([STORAGE_KEYS.password, STORAGE_KEYS.rules, STORAGE_KEYS.activity, STORAGE_KEYS.lastScan, STORAGE_KEYS.authThrottle, STORAGE_KEYS.categoryOverrides, STORAGE_KEYS.protectedDomains, STORAGE_KEYS.defaultCategoryRulesVersion]);
     await this.setSettings({ ...settings, onboardingComplete: false });
   },
   async sanitizePrivacyData(): Promise<void> {

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.2 — 2026-08-07
+
+- Added one disabled default rule for every built-in category in Rules while preserving existing user rules.
+
 ## 1.4.1 — 2026-08-07
 
 - Removed unnecessary module preload hints that Chrome reported as cross-world extension resource mismatches.

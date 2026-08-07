@@ -9,12 +9,28 @@ import { normalizeProtectedDomain } from "../retention/protection";
 import { formatDate, shortenUrl } from "../shared/format";
 import { sessionStorage, storage } from "../shared/storage";
 import { CATEGORY_PRESETS, getCategoryPreset, suggestCategory } from "../shared/categories";
+import { addMissingDefaultCategoryRules, DEFAULT_CATEGORY_RULES_VERSION } from "../shared/default-rules";
 import { createBackup, parseBackup } from "../shared/backup";
 import type { ActivityEntry, CategoryId, CategoryOverrides, CategoryScanResult, RetentionRule, RuleKind, ScanResult, Settings, TimeUnit } from "../shared/types";
 import "../styles.css";
 
 type View = "overview" | "rules" | "categories" | "simulator" | "activity" | "settings";
 const EMPTY_RULE: Omit<RetentionRule, "id" | "createdAt"> = { name: "", kind: "domain", pattern: "", duration: 7, unit: "days", enabled: true, priority: 50 };
+
+async function loadRulesWithDefaults(): Promise<RetentionRule[]> {
+  const [loadedRules, preparedVersion] = await Promise.all([
+    storage.getRules(),
+    storage.getDefaultCategoryRulesVersion(),
+  ]);
+  if (preparedVersion >= DEFAULT_CATEGORY_RULES_VERSION) return loadedRules;
+
+  const { rules } = addMissingDefaultCategoryRules(loadedRules);
+  await Promise.all([
+    storage.setRules(rules),
+    storage.setDefaultCategoryRulesVersion(DEFAULT_CATEGORY_RULES_VERSION),
+  ]);
+  return rules;
+}
 
 function Dashboard() {
   const extensionVersion = chrome.runtime.getManifest().version;
@@ -45,7 +61,7 @@ function Dashboard() {
     setPasswordReady(Boolean(password));
     setAppUnlocked(unlocked);
     if (unlocked) {
-      const [loadedRules, loadedOverrides, loadedProtected] = await Promise.all([storage.getRules(), storage.getCategoryOverrides(), storage.getProtectedDomains()]);
+      const [loadedRules, loadedOverrides, loadedProtected] = await Promise.all([loadRulesWithDefaults(), storage.getCategoryOverrides(), storage.getProtectedDomains()]);
       setRules(loadedRules); setCategoryOverrides(loadedOverrides); setProtectedDomains(loadedProtected);
       await chrome.runtime.sendMessage({ type: "REGISTER_DASHBOARD_TAB" });
       applyPendingRuleUrl();
@@ -82,14 +98,15 @@ function Dashboard() {
   async function runCategoryScan() { setScanningCategories(true); try { setCategoryScan(await scanHistoryCategories()); } finally { setScanningCategories(false); } }
   async function prepareDefaultRules(activate: boolean) {
     if (activate && !confirm("Activate all seven default category rules and permanently remove history entries that have already exceeded their suggested retention periods? This cannot be undone.")) return;
-    const existingCategories = new Set(rules.filter((rule) => rule.kind === "category").map((rule) => rule.pattern));
-    const additions: RetentionRule[] = CATEGORY_PRESETS.filter((preset) => !existingCategories.has(preset.id)).map((preset, index) => ({
-      id: crypto.randomUUID(), name: `${preset.label} default`, kind: "category", pattern: preset.id,
-      category: preset.id, duration: preset.duration, unit: preset.unit, enabled: activate, priority: 40 - index, createdAt: Date.now() + index,
-    }));
-    const next = rules.map((rule) => activate && rule.kind === "category" ? { ...rule, enabled: true } : rule).concat(additions);
-    await persistRules(next);
-    if (!activate) { setNotice(`${additions.length} disabled default rule${additions.length === 1 ? "" : "s"} prepared`); return; }
+    const prepared = addMissingDefaultCategoryRules(rules, { enabled: activate });
+    const next = activate ? prepared.rules.map((rule) => rule.kind === "category" ? { ...rule, enabled: true } : rule) : prepared.rules;
+    await Promise.all([persistRules(next), storage.setDefaultCategoryRulesVersion(DEFAULT_CATEGORY_RULES_VERSION)]);
+    if (!activate) {
+      setNotice(prepared.additions.length
+        ? `${prepared.additions.length} disabled default rule${prepared.additions.length === 1 ? "" : "s"} prepared`
+        : "All default category rules are already prepared");
+      return;
+    }
     const result = await scanHistory(true, true);
     setLastScan(result); setActivity(await storage.getActivity());
     setNotice(`Default rules activated · ${result.deleted} expired history URL${result.deleted === 1 ? "" : "s"} removed`);
@@ -176,7 +193,7 @@ function Dashboard() {
   }
   async function unlockApplication() {
     await sessionStorage.unlock();
-    const [loadedRules, loadedOverrides, loadedProtected] = await Promise.all([storage.getRules(), storage.getCategoryOverrides(), storage.getProtectedDomains()]);
+    const [loadedRules, loadedOverrides, loadedProtected] = await Promise.all([loadRulesWithDefaults(), storage.getCategoryOverrides(), storage.getProtectedDomains()]);
     setRules(loadedRules); setCategoryOverrides(loadedOverrides); setProtectedDomains(loadedProtected);
     setAppUnlocked(true);
     await chrome.runtime.sendMessage({ type: "REGISTER_DASHBOARD_TAB" });

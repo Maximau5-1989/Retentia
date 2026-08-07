@@ -18,6 +18,7 @@ export const STORAGE_KEYS = {
   authThrottle: "authThrottle",
   categoryOverrides: "categoryOverrides",
   protectedDomains: "protectedDomains",
+  defaultCategoryRulesVersion: "defaultCategoryRulesVersion",
 } as const;
 
 export const SESSION_KEYS = {

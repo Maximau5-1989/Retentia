@@ -20,6 +20,7 @@ Retentia is a privacy-first Chrome extension that gives selected browser history
 
 - **Protected websites** always override retention rules and category cleanup, including for subdomains.
 - Category presets can be activated, paused, and cleaned independently.
+- Rules automatically receives one disabled default rule for every built-in category without duplicating existing category rules.
 - The Rules view reports known overlaps and clearly identifies the winning rule.
 - Configuration backups contain rules, settings, category overrides, and protected domains only. Passwords, activity totals, scan results, and browser history are excluded.
 

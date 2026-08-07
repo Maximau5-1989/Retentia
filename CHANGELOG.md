@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.1 — 2026-08-07
+
+- Removed unnecessary module preload hints that Chrome reported as cross-world extension resource mismatches.
+
 ## 1.4.0 — 2026-08-07
 
 - Added protected websites, independent category controls, rule conflict detection, and privacy-safe backup and restore.

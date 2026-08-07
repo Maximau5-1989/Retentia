@@ -8,6 +8,7 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    modulePreload: false,
     rollupOptions: {
       input: {
         popup: resolve(import.meta.dirname, "popup.html"),

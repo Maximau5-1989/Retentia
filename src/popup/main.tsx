@@ -36,6 +36,14 @@ function Popup() {
     document.documentElement.classList.toggle("dark", settings.theme === "dark");
   }, [settings?.theme]);
 
+  useEffect(() => {
+    const handleStorageChange = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
+      if (areaName === "local" && changes.settings?.newValue) setSettings(changes.settings.newValue as Settings);
+    };
+    chrome.storage.onChanged.addListener(handleStorageChange);
+    return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+  }, []);
+
   async function addRule() {
     if (!tab?.url || tab.url.startsWith("chrome://")) return;
     const url = new URL(tab.url);

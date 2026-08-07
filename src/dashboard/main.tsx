@@ -7,17 +7,26 @@ import { cleanExpiredForRule, deleteHistoryMatchingRule, scanHistory, scanHistor
 import { detectRuleConflicts } from "../retention/conflicts";
 import { addManualTarget, normalizeHttpUrl, removeManualTarget } from "../retention/manual-targets";
 import type { ManualTargetKind } from "../retention/manual-targets";
+import { groupSimulatorCandidates } from "./simulator";
 import { normalizeProtectedDomain } from "../retention/protection";
 import { formatDate, shortenUrl } from "../shared/format";
 import { sessionStorage, storage } from "../shared/storage";
 import { CATEGORY_PRESETS, getCategoryPreset, suggestCategory } from "../shared/categories";
 import { addMissingDefaultCategoryRules, DEFAULT_CATEGORY_RULES_VERSION } from "../shared/default-rules";
+import { DEFAULT_SETTINGS } from "../shared/defaults";
 import { createBackup, parseBackup } from "../shared/backup";
 import type { ActivityEntry, CategoryId, CategoryOverrides, CategoryRejections, CategoryScanResult, RetentionRule, RuleKind, ScanResult, Settings, TimeUnit } from "../shared/types";
 import "../styles.css";
 
 type View = "overview" | "rules" | "categories" | "simulator" | "activity" | "settings";
 const EMPTY_RULE: Omit<RetentionRule, "id" | "createdAt"> = { name: "", kind: "domain", pattern: "", duration: 7, unit: "days", enabled: true, deleteImmediately: false, priority: 50 };
+const MATCH_TYPE_DESCRIPTIONS: Record<RuleKind, string> = {
+  domain: "Matches this domain and all of its subdomains, regardless of the page path.",
+  exact: "Matches only the complete URL exactly as entered, including its path and query.",
+  category: "Applies the rule to all URLs that are grouped into the selected category.",
+  wildcard: "Uses * as a flexible placeholder to match a group of similar URLs.",
+  regex: "Uses a regular expression for advanced matching. Invalid expressions will not match history.",
+};
 
 function countSuggestedUrls(scan: CategoryScanResult, category: CategoryId): number {
   return scan.buckets.find((bucket) => !bucket.category)?.domains
@@ -73,6 +82,7 @@ function Dashboard() {
   const [manualTargetKind, setManualTargetKind] = useState<ManualTargetKind>("domain");
   const [manualTargetDraft, setManualTargetDraft] = useState("");
   const [historyTargetKind, setHistoryTargetKind] = useState<ManualTargetKind>("url");
+  const [expandedSimulatorRules, setExpandedSimulatorRules] = useState<string[]>([]);
 
   async function refresh() {
     await storage.sanitizePrivacyData();
@@ -94,6 +104,20 @@ function Dashboard() {
     void refresh();
   }, []);
 
+  useEffect(() => {
+    const handleStorageChange = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
+      if (areaName === "local" && changes.settings?.newValue) setSettings({ ...DEFAULT_SETTINGS, ...changes.settings.newValue } as Settings);
+    };
+    chrome.storage.onChanged.addListener(handleStorageChange);
+    return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+  }, []);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(""), 10_000);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
+
   async function persistRules(next: RetentionRule[]) { setRules(next); await storage.setRules(next); }
   async function attachTargetToRule(ruleId: string, kind: ManualTargetKind, input: string) {
     const selectedRule = rules.find((rule) => rule.id === ruleId);
@@ -110,7 +134,7 @@ function Dashboard() {
       const update = await attachTargetToRule(ruleId, historyTargetKind, pendingAddToRuleUrl);
       setPendingAddToRuleUrl("");
       const targetLabel = historyTargetKind === "url" ? "URL" : "Domain";
-      setNotice(update.alreadyExists ? `This ${targetLabel.toLowerCase()} is already part of ${update.ruleName}` : `${targetLabel} added to ${update.ruleName}`);
+      setNotice(update.alreadyExists ? `${targetLabel} already added` : `${targetLabel} added`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Chrome did not provide a valid history URL");
     }
@@ -120,7 +144,7 @@ function Dashboard() {
     try {
       const update = await attachTargetToRule(manualRuleId, manualTargetKind, manualTargetDraft);
       const targetLabel = manualTargetKind === "url" ? "URL" : "Domain";
-      setNotice(update.alreadyExists ? `This ${targetLabel.toLowerCase()} is already part of ${update.ruleName}` : `${targetLabel} added to ${update.ruleName}`);
+      setNotice(update.alreadyExists ? `${targetLabel} already added` : `${targetLabel} added`);
       if (!update.alreadyExists) setManualTargetDraft("");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Website could not be added");
@@ -281,6 +305,9 @@ function Dashboard() {
   function selectView(next: View) {
     setView(next);
   }
+  function toggleSimulatorRule(ruleId: string) {
+    setExpandedSimulatorRules((current) => current.includes(ruleId) ? current.filter((id) => id !== ruleId) : [...current, ruleId]);
+  }
 
   function applyPendingRuleUrl() {
     if (pendingRuleUrl) {
@@ -320,6 +347,7 @@ function Dashboard() {
   const deletedCount = activity.filter((entry) => entry.type === "deleted").reduce((total, entry) => total + (entry.count ?? 0), 0);
   const selectedManualRule = rules.find((rule) => rule.id === manualRuleId);
   const rejectedCategorySuggestions = Object.entries(categoryRejections).flatMap(([domain, categories]) => categories.map((category) => ({ domain, category })));
+  const simulatorRuleGroups = groupSimulatorCandidates(rules, lastScan?.candidates ?? []);
 
   if (!settings) return <div className="p-8">Loading Retentia…</div>;
   return <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#edf7e7,transparent_34%),#f5f7f3]">
@@ -331,7 +359,7 @@ function Dashboard() {
     <main className="ml-64 min-h-screen bg-[radial-gradient(circle_at_top_left,#edf7e7,transparent_34%),#f5f7f3] p-8 dark:bg-[radial-gradient(circle_at_top_left,#193324,transparent_34%),#0c1420] lg:p-12">
       <div className="mx-auto max-w-6xl">
         <header className="mb-8 flex items-start justify-between"><div><p className="muted mb-1 text-sm font-bold uppercase tracking-[.16em]">Control your digital trail</p><h2 className="m-0 text-3xl font-black capitalize">{view}</h2></div><div className="flex items-center gap-3">{settings.testingBypassPassword && <span className="pill !bg-amber-100 !text-amber-800 dark:!bg-amber-900 dark:!text-amber-100">Testing mode · no password</span>}<span className={`pill ${settings.enabled ? '' : '!bg-gray-100 !text-gray-600'}`}>{settings.enabled ? 'Protection active' : 'Paused'}</span><button className={`toggle ${settings.enabled ? 'on' : ''}`} onClick={() => updateSettings({ ...settings, enabled: !settings.enabled })} /><ThemeButton theme={settings.theme} onToggle={toggleTheme}/></div></header>
-        {notice && <button onClick={() => setNotice("")} className="mb-5 w-full rounded-xl border border-[#cfe3c4] bg-[#eff8ea] p-3 text-left font-semibold text-[#397323]">{notice} · click to dismiss</button>}
+        {notice && <button onClick={() => setNotice("")} className="mb-5 w-full rounded-xl border border-[#cfe3c4] bg-[#eff8ea] p-3 text-left font-semibold text-[#397323]">{notice}</button>}
 
         {view === "overview" && <>
           {!settings.onboardingComplete && <section className="card mb-6 overflow-hidden p-7" style={{ background: "#18283d", color: "#ffffff" }}><p className="mb-2 text-xs font-bold uppercase tracking-[.18em]" style={{ color: "#9bd66f" }}>Welcome to Retentia</p><h3 className="m-0 text-2xl font-black" style={{ color: "#ffffff" }}>Give history an expiration date.</h3><p className="max-w-2xl" style={{ color: "#cbd4df" }}>Create rules, preview their effect in the simulator, then let Retentia clean matching URLs automatically.</p><div className="flex gap-3"><button className="rounded-xl border-0 bg-[#82c950] px-4 py-2 font-bold text-[#162235]" onClick={() => setView('rules')}>Create first rule</button><button className="rounded-xl border border-white/30 bg-white/10 px-4 py-2 font-bold" style={{ color: "#ffffff" }} onClick={() => updateSettings({ ...settings, onboardingComplete: true })}>Got it</button></div></section>}
@@ -345,7 +373,7 @@ function Dashboard() {
 
         {view === "categories" && rejectedCategorySuggestions.length > 0 && <section className="card mb-6 overflow-hidden"><div className="border-b border-[#e5eae2] p-5 dark:border-[#2b3a4b]"><h3 className="m-0 text-lg font-extrabold">Rejected category suggestions</h3><p className="muted mb-0 mt-1 text-sm">These domains remain uncategorized for the rejected suggestion. Restore one if you want Retentia to review it again.</p></div><div>{rejectedCategorySuggestions.map(item => <div className="flex items-center gap-4 border-t border-[#edf0ea] px-5 py-4 first:border-t-0 dark:border-[#29394a]" key={`rejected-${item.domain}-${item.category}`}><div className="min-w-0 flex-1"><div className="truncate text-sm font-bold">{item.domain}</div><div className="muted text-xs">Rejected for {getCategoryPreset(item.category)?.label}</div></div><button className="btn-secondary shrink-0" onClick={() => void restoreCategorySuggestion(item.domain, item.category)}>Restore suggestion</button></div>)}</div></section>}
 
-        {view === "categories" && <div className="card mb-6 p-6"><h3 className="mt-0 text-lg font-extrabold">Default category rules</h3><p className="muted text-sm">Prepare all built-in categories as disabled rules, or activate them and remove matching history according to each rule's deletion timing. Immediate categories remove every match.</p><div className="flex flex-wrap gap-3"><button className="btn-secondary" onClick={() => void prepareDefaultRules(false)}>Prepare disabled rules</button><button className="btn-danger" onClick={() => void prepareDefaultRules(true)}>Activate and clean matching history</button></div></div>}
+        {view === "categories" && <div className="card mb-6 p-6"><h3 className="mt-0 text-lg font-extrabold">Default category rules</h3><p className="muted mb-0 text-sm">Retentia includes a ready-made rule for every built-in category. <strong>Prepare disabled rules</strong> adds any missing rules without activating them or changing browser history, so you can review their timing first. <strong>Activate and clean matching history</strong> enables all category rules and removes history that is already due; categories configured for immediate deletion remove every current match.</p><div className="mt-6 flex flex-wrap gap-3"><button className="btn-secondary" onClick={() => void prepareDefaultRules(false)}>Prepare disabled rules</button><button className="btn-danger" onClick={() => void prepareDefaultRules(true)}>Activate and clean matching history</button></div></div>}
 
         {view === "categories" && categoryScan && <div className="space-y-5">{categoryScan.buckets.filter(bucket => bucket.domains.length > 0).map(bucket => { const preset=getCategoryPreset(bucket.category); return <section className="card overflow-hidden" key={`domains-${bucket.category ?? 'uncategorized'}`}><div className="flex items-center justify-between border-b border-[#e5eae2] p-5 dark:border-[#2b3a4b]"><div><h3 className="m-0 text-base font-extrabold">Move websites from {preset?.label ?? 'Uncategorized'}</h3><p className="muted mb-0 mt-1 text-xs">Only a domain you manually move is saved as a local override. Possible matches are never deleted automatically.</p></div><span className="pill">{bucket.domains.length} domains</span></div><div className="max-h-72 overflow-y-auto">{bucket.domains.map(item => <div className="flex items-center gap-3 border-t border-[#edf0ea] px-5 py-3 first:border-t-0 dark:border-[#29394a]" key={`${item.domain}-${item.suggestedCategory ?? bucket.category ?? 'none'}`}><div className="min-w-0 flex-1"><div className="truncate text-sm font-bold">{item.domain}</div><div className="muted text-xs">{item.urls} URLs · {item.visits} visits{item.overridden ? ' · custom category' : ''}{item.suggestedCategory ? ` · Possible ${getCategoryPreset(item.suggestedCategory)?.label}` : ''}</div></div><select aria-label={`Category for ${item.domain}`} className="field !w-56" value={item.overridden ? bucket.category ?? '' : 'automatic'} onChange={event => void moveDomain(item.domain, event.target.value === 'automatic' ? undefined : event.target.value as CategoryId)}><option value="automatic">Automatic</option>{CATEGORY_PRESETS.map(option => <option value={option.id} key={option.id}>{option.label}</option>)}</select></div>)}</div></section>})}</div>}
 
@@ -370,10 +398,10 @@ function Dashboard() {
             <div className="space-y-4">
               <label><span className="label">Rule name</span><input required className="field" value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} placeholder="Sensitive searches" /></label>
               <label><span className="label">Category preset</span><select className="field" value={draft.category ?? ""} onChange={e => applyCategory((e.target.value || undefined) as CategoryId | undefined)}><option value="">Uncategorized</option>{CATEGORY_PRESETS.map(preset => <option value={preset.id} key={preset.id}>{preset.label} · {preset.deleteImmediately ? 'immediate' : `${preset.duration} ${preset.unit}`}</option>)}</select>{draft.category && <span className="muted mt-1 block text-xs">{getCategoryPreset(draft.category)?.description} You can still customize the deletion timing.</span>}</label>
-              <label><span className="label">Match type</span><select className="field" value={draft.kind} onChange={e => setDraft({ ...draft, kind: e.target.value as RuleKind })}><option value="domain">Domain</option><option value="exact">Exact URL</option><option value="wildcard">Wildcard</option><option value="regex">Regular expression</option></select></label>
+              <label><span className="label">Match type</span><select className="field" value={draft.kind} onChange={e => setDraft({ ...draft, kind: e.target.value as RuleKind })}><option value="domain">Domain</option><option value="exact">Exact URL</option><option value="wildcard">Wildcard</option><option value="regex">Regular expression</option></select><span className="muted mt-1 block text-xs">{MATCH_TYPE_DESCRIPTIONS[draft.kind]}</span></label>
               <label><span className="label">Pattern</span><input required className="field" value={draft.pattern} onChange={e => setDraft({ ...draft, pattern: e.target.value })} onBlur={suggestDraftCategory} placeholder={draft.kind === 'domain' ? 'example.com' : 'https://example.com/*'} /></label>
               <label><span className="label">Deletion timing</span><select className="field" value={draft.deleteImmediately ? 'immediate' : 'retention'} onChange={e => setDraft({ ...draft, deleteImmediately: e.target.value === 'immediate' })}><option value="retention">After a retention period</option><option value="immediate">Immediately after visit</option></select><span className="muted mt-1 block text-xs">Immediate rules remove the URL from history without closing the website.</span></label>
-              {!draft.deleteImmediately && <div className="grid grid-cols-2 gap-3"><label><span className="label">Keep for</span><input required min="1" type="number" className="field" value={draft.duration} onChange={e => setDraft({ ...draft, duration: Number(e.target.value) })} /></label><label><span className="label">Unit</span><select className="field" value={draft.unit} onChange={e => setDraft({ ...draft, unit: e.target.value as TimeUnit })}><option value="minutes">Minutes</option><option value="hours">Hours</option><option value="days">Days</option></select></label></div>}
+              {!draft.deleteImmediately && <div className="grid grid-cols-2 gap-3"><label><span className="label">Keep for</span><input required min="1" type="number" className="field" value={draft.duration} onChange={e => setDraft({ ...draft, duration: Number(e.target.value) })} /></label><label><span className="label">Duration</span><select className="field" value={draft.unit} onChange={e => setDraft({ ...draft, unit: e.target.value as TimeUnit })}><option value="minutes">Minutes</option><option value="hours">Hours</option><option value="days">Days</option></select></label></div>}
               <label><span className="label">Priority (higher wins)</span><input type="number" className="field" value={draft.priority} onChange={e => setDraft({ ...draft, priority: Number(e.target.value) })} /></label>
               {!editingId && <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#f0cfbd] bg-[#fff7f1] p-4 dark:border-[#694331] dark:bg-[#2a201b]"><input className="mt-1 h-4 w-4 accent-[#a94f1c]" type="checkbox" checked={deleteExisting} onChange={e => setDeleteExisting(e.target.checked)} /><span><strong className="block text-sm">Delete existing matching history now</strong><span className="muted mt-1 block text-xs">Permanently removes every existing URL matched by this rule immediately after creation. You will be asked to confirm.</span></span></label>}
               <div className="flex gap-2"><button className="btn-primary flex-1" type="submit">Save rule</button>{editingId && <button type="button" className="btn-secondary" onClick={() => { setEditingId(undefined); setDraft(EMPTY_RULE); }}>Cancel</button>}</div>
@@ -395,7 +423,10 @@ function Dashboard() {
           <section className="space-y-3">{rules.length === 0 ? <div className="card p-8 text-center"><h3>No rules yet</h3><p className="muted">Add your first retention rule to begin.</p></div> : rules.map(rule => <article className="card flex items-center gap-4 p-5" key={rule.id}><button aria-label={`${rule.enabled ? 'Disable' : 'Enable'} ${rule.name}`} className={`toggle shrink-0 ${rule.enabled?'on':''}`} onClick={() => persistRules(rules.map(item => item.id === rule.id ? {...item,enabled:!item.enabled}:item))}/><div className="min-w-0 flex-1"><h3 className="m-0 truncate text-base font-extrabold">{rule.name}</h3></div><button className="btn-secondary" onClick={() => editRule(rule)}>Edit</button><button className="btn-danger" onClick={() => confirm(`Delete “${rule.name}”?`) && void persistRules(rules.filter(item => item.id !== rule.id))}>Delete</button></article>)}</section>
         </div>}
 
-        {view === "simulator" && <section><div className="card mb-6 flex flex-wrap items-center justify-between gap-4 p-6"><div><h3 className="m-0 text-lg font-extrabold">Dry-run simulator</h3><p className="muted mb-0 mt-1 text-sm">Preview matches without changing browser history.</p></div><div className="flex gap-2"><button className="btn-secondary" disabled={simulating} onClick={simulate}>{simulating?'Scanning…':'Refresh preview'}</button><button className="btn-primary" disabled={simulating || !lastScan?.expired} onClick={runCleanup}>Remove {lastScan?.expired ?? 0} expired</button></div></div>{lastScan ? <><div className="mb-4 grid grid-cols-3 gap-4">{[[lastScan.scanned,'Scanned'],[lastScan.matched,'Matched'],[lastScan.expired,'Expired']].map(([v,l])=><div className="card p-4" key={l}><strong className="text-2xl">{v}</strong><span className="muted ml-2 text-sm">{l}</span></div>)}</div><div className="card overflow-hidden"><table className="w-full border-collapse text-left text-sm"><thead className="bg-[#eef2eb]"><tr><th className="p-4">URL</th><th className="p-4">Rule</th><th className="p-4">Expires</th><th className="p-4">Status</th></tr></thead><tbody>{lastScan.candidates.slice(0,500).map(item=><tr className="border-t border-[#edf0ea]" key={item.url}><td className="max-w-[420px] truncate p-4" title={item.url}>{shortenUrl(item.url)}</td><td className="p-4 font-semibold">{item.rule.name}</td><td className="p-4">{formatDate(item.expiresAt)}</td><td className="p-4"><span className={`pill ${item.expired?'!bg-[#fff0e8] !text-[#a94f1c]':''}`}>{item.expired?'Expired':'Retained'}</span></td></tr>)}</tbody></table>{!lastScan.candidates.length&&<p className="muted p-8 text-center">No matching history items.</p>}</div></>:<div className="card p-12 text-center"><h3>Ready to preview</h3><p className="muted">Run a scan to see exactly what your rules match.</p></div>}</section>}
+        {view === "simulator" && <section>
+          <div className="card mb-6 flex flex-wrap items-center justify-between gap-4 p-6"><div><h3 className="m-0 text-lg font-extrabold">Dry-run simulator</h3><p className="muted mb-0 mt-1 text-sm">Preview matches per enabled rule without changing browser history. Open a rule to inspect its URLs.</p></div><div className="flex gap-2"><button className="btn-secondary" disabled={simulating} onClick={simulate}>{simulating?'Scanning…':'Refresh preview'}</button><button className="btn-primary" disabled={simulating || !lastScan?.expired} onClick={runCleanup}>Remove {lastScan?.expired ?? 0} expired</button></div></div>
+          {lastScan ? <><div className="mb-4 grid grid-cols-3 gap-4">{[[lastScan.scanned,'Scanned'],[lastScan.matched,'Matched'],[lastScan.expired,'Expired']].map(([v,l])=><div className="card p-4" key={l}><strong className="text-2xl">{v}</strong><span className="muted ml-2 text-sm">{l}</span></div>)}</div><div className="space-y-3">{simulatorRuleGroups.length ? simulatorRuleGroups.map(group => { const expanded=expandedSimulatorRules.includes(group.rule.id); return <article className="card overflow-hidden" key={`simulator-${group.rule.id}`}><button className="flex w-full items-center gap-4 border-0 bg-transparent p-5 text-left text-inherit" onClick={() => toggleSimulatorRule(group.rule.id)} aria-expanded={expanded}><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#eef7e8] font-black text-[#397323] dark:bg-[#263d29] dark:text-[#a8e77d]">{expanded ? '−' : '+'}</span><div className="min-w-0 flex-1"><h3 className="m-0 truncate text-base font-extrabold">{group.rule.name}</h3><p className="muted mb-0 mt-1 text-xs">{group.rule.deleteImmediately ? 'Immediate deletion' : `Keep for ${group.rule.duration} ${group.rule.unit}`}</p></div><span className="pill">{group.matched} matched</span><span className={`pill ${group.expired ? '!bg-[#fff0e8] !text-[#a94f1c]' : ''}`}>{group.expired} expired</span></button>{expanded && <div className="border-t border-[#e5eae2] dark:border-[#2b3a4b]">{group.candidates.length ? <><table className="w-full border-collapse text-left text-sm"><thead className="bg-[#eef2eb] dark:bg-[#172536]"><tr><th className="p-4">URL</th><th className="p-4">Expires</th><th className="p-4">Status</th></tr></thead><tbody>{group.candidates.slice(0,500).map(item=><tr className="border-t border-[#edf0ea] dark:border-[#29394a]" key={item.url}><td className="max-w-[520px] truncate p-4" title={item.url}>{shortenUrl(item.url)}</td><td className="p-4">{formatDate(item.expiresAt)}</td><td className="p-4"><span className={`pill ${item.expired?'!bg-[#fff0e8] !text-[#a94f1c]':''}`}>{item.expired?'Expired':'Retained'}</span></td></tr>)}</tbody></table>{group.candidates.length > 500 && <p className="muted m-0 border-t border-[#edf0ea] p-4 text-xs dark:border-[#29394a]">Showing the first 500 of {group.candidates.length} matched URLs.</p>}</> : <p className="muted m-0 p-6 text-center text-sm">No matching URLs for this rule.</p>}</div>}</article>}) : <div className="card p-10 text-center"><h3>No enabled rules</h3><p className="muted">Enable at least one rule to compare simulator results.</p></div>}</div></> : <div className="card p-12 text-center"><h3>Ready to preview</h3><p className="muted">Run a scan to see matching totals for every enabled rule.</p></div>}
+        </section>}
 
         {view === "activity" && <section className="card overflow-hidden"><div className="flex items-center justify-between p-6"><div><h3 className="m-0 text-lg font-extrabold">Privacy-safe activity log</h3><p className="muted mb-0 mt-1 text-sm">Stores totals and timestamps only—never deleted URLs or domains.</p></div><button className="btn-danger" onClick={async()=>{if(confirm('Clear the activity log?')){await storage.clearActivity();setActivity([])}}}>Clear log</button></div><div>{activity.length ? activity.map(entry=><article className="flex gap-4 border-t border-[#edf0ea] px-6 py-4" key={entry.id}><div className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${entry.type==='error'?'bg-red-500':entry.type==='deleted'?'bg-[#6db33f]':'bg-blue-400'}`}/><div className="min-w-0"><p className="m-0 text-sm font-bold">{entry.message}</p><time className="muted text-xs">{formatDate(entry.timestamp)}</time></div></article>):<p className="muted p-10 text-center">No activity recorded yet.</p>}</div></section>}
 

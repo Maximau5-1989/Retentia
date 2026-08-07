@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.0 — 2026-08-07
+
+- Synchronized light and dark themes between popup and dashboard, added temporary concise notifications, grouped simulator results by enabled rule, and improved rule and category guidance.
+
 ## 1.6.4 — 2026-08-07
 
 - Added persistent local rejection and restoration controls for uncertain category scan suggestions.

@@ -38,3 +38,7 @@ export function durationToMs(rule: Pick<RetentionRule, "duration" | "unit">): nu
   const multiplier = rule.unit === "minutes" ? 60_000 : rule.unit === "hours" ? 3_600_000 : 86_400_000;
   return Math.max(1, rule.duration) * multiplier;
 }
+
+export function getExpirationTime(lastVisitTime: number, rule: RetentionRule): number {
+  return rule.deleteImmediately ? lastVisitTime : lastVisitTime + durationToMs(rule);
+}

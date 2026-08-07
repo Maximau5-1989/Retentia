@@ -28,6 +28,7 @@ function isRule(value: unknown): value is RetentionRule {
   return typeof value.id === "string" && typeof value.name === "string" && RULE_KINDS.has(value.kind as RuleKind)
     && typeof value.pattern === "string" && typeof value.duration === "number" && value.duration > 0
     && TIME_UNITS.has(value.unit as TimeUnit) && typeof value.enabled === "boolean"
+    && (value.deleteImmediately === undefined || typeof value.deleteImmediately === "boolean")
     && typeof value.priority === "number" && typeof value.createdAt === "number"
     && (value.category === undefined || CATEGORY_IDS.has(value.category as CategoryId));
 }

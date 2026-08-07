@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.0 — 2026-08-07
+
+- Added an immediate-deletion rule mode for URLs, domains, patterns, and categories while preserving protected websites and rule priority.
+
 ## 1.4.3 — 2026-08-07
 
 - Removed the word default from built-in category rule names and migrated existing generated names.

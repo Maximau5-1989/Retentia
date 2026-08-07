@@ -1,4 +1,4 @@
-import { scanHistory } from "../retention/engine";
+import { deleteVisitedUrlImmediately, scanHistory } from "../retention/engine";
 import { sessionStorage, storage } from "../shared/storage";
 
 const ALARM_NAME = "retentia-scan";
@@ -39,6 +39,20 @@ async function runSafely(): Promise<void> {
   }
 }
 
+async function deleteImmediatelySafely(url: string): Promise<void> {
+  try {
+    await deleteVisitedUrlImmediately(url);
+  } catch {
+    const settings = await storage.getSettings();
+    await storage.addActivity({
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      type: "error",
+      message: "Immediate history removal failed.",
+    }, settings.maxLogEntries);
+  }
+}
+
 chrome.runtime.onInstalled.addListener(async () => {
   await storage.sanitizePrivacyData();
   await configureAlarm();
@@ -55,6 +69,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   if (tabId === await sessionStorage.getDashboardTabId()) await sessionStorage.lock();
 });
 chrome.alarms.onAlarm.addListener((alarm) => { if (alarm.name === ALARM_NAME) void runSafely(); });
+chrome.history.onVisited.addListener((item) => { if (item.url) void deleteImmediatelySafely(item.url); });
 chrome.storage.onChanged.addListener((changes) => { if (changes.settings) void configureAlarm(); });
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "REGISTER_DASHBOARD_TAB" && _sender.tab?.id !== undefined) {

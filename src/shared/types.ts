@@ -10,6 +10,7 @@ export interface RetentionRule {
   duration: number;
   unit: TimeUnit;
   enabled: boolean;
+  deleteImmediately?: boolean;
   priority: number;
   category?: CategoryId;
   createdAt: number;

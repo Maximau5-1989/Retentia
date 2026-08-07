@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { durationToMs, findWinningRule, matchesRule } from "./matcher";
+import { durationToMs, findWinningRule, getExpirationTime, matchesRule } from "./matcher";
 import type { RetentionRule } from "../shared/types";
 
 const rule = (overrides: Partial<RetentionRule>): RetentionRule => ({ id: "1", name: "Test", kind: "domain", pattern: "example.com", duration: 7, unit: "days", enabled: true, priority: 10, createdAt: 1, ...overrides });
@@ -25,5 +25,9 @@ describe("rule matcher", () => {
   });
   it("converts durations to milliseconds", () => {
     expect(durationToMs({ duration: 2, unit: "hours" })).toBe(7_200_000);
+  });
+  it("expires immediate rules at the visit time", () => {
+    expect(getExpirationTime(123, rule({ deleteImmediately: true }))).toBe(123);
+    expect(getExpirationTime(123, rule({ duration: 2, unit: "hours" }))).toBe(7_200_123);
   });
 });

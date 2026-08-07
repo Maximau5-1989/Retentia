@@ -17,6 +17,7 @@ function Popup() {
   const [passwordReady, setPasswordReady] = useState<boolean | null>(null);
   const [appUnlocked, setAppUnlocked] = useState<boolean | null>(null);
   const [deleteExisting, setDeleteExisting] = useState(false);
+  const [deleteImmediately, setDeleteImmediately] = useState(false);
   const [category, setCategory] = useState<CategoryId>();
 
   useEffect(() => {
@@ -41,7 +42,7 @@ function Popup() {
     const rules = await storage.getRules();
     const rule: RetentionRule = {
       id: crypto.randomUUID(), name: url.hostname, kind: "domain", pattern: url.hostname,
-      duration, unit, enabled: true, priority: 50, category, createdAt: Date.now(),
+      duration, unit, enabled: true, deleteImmediately, priority: 50, category, createdAt: Date.now(),
     };
     await storage.setRules([rule, ...rules]);
     if (deleteExisting) await deleteHistoryMatchingRule(rule);
@@ -78,13 +79,14 @@ function Popup() {
       <p className="muted mb-1 text-xs font-semibold uppercase tracking-wide">Current website</p>
       <p className="mb-4 mt-0 truncate font-bold">{tab?.url ? new URL(tab.url).hostname : "Unavailable"}</p>
       <label><span className="label">Category preset</span><select className="field mb-2" value={category ?? ""} onChange={event => selectCategory((event.target.value || undefined) as CategoryId | undefined)}><option value="">Uncategorized</option>{CATEGORY_PRESETS.map(preset => <option key={preset.id} value={preset.id}>{preset.label}</option>)}</select></label>
-      <div className="grid grid-cols-[1fr_1.3fr] gap-2">
+      <label><span className="label">Deletion timing</span><select className="field mb-2" value={deleteImmediately ? "immediate" : "retention"} onChange={event => setDeleteImmediately(event.target.value === "immediate")}><option value="retention">After a retention period</option><option value="immediate">Immediately after visit</option></select></label>
+      {!deleteImmediately && <div className="grid grid-cols-[1fr_1.3fr] gap-2">
         <input className="field" type="number" min="1" value={duration} onChange={(event) => setDuration(Number(event.target.value))} />
         <select className="field" value={unit} onChange={(event) => setUnit(event.target.value as TimeUnit)}><option value="minutes">Minutes</option><option value="hours">Hours</option><option value="days">Days</option></select>
-      </div>
-      <button className="btn-primary mt-3 w-full" onClick={quickAdd}>{saved ? "Rule added ✓" : "Add retention rule"}</button>
+      </div>}
+      <button className="btn-primary mt-3 w-full" onClick={quickAdd}>{saved ? "Rule added ✓" : deleteImmediately ? "Add immediate rule" : "Add retention rule"}</button>
       <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-lg bg-[#fff5ee] p-3 text-xs dark:bg-[#2a201b]"><input className="mt-0.5 accent-[#a94f1c]" type="checkbox" checked={deleteExisting} onChange={event=>setDeleteExisting(event.target.checked)}/><span><strong>Delete existing history now</strong><span className="muted mt-0.5 block">Permanently remove current matches after password confirmation.</span></span></label>
-      <p className="muted mb-0 text-center text-[11px]">The timer resets on every new visit.</p>
+      <p className="muted mb-0 text-center text-[11px]">{deleteImmediately ? "Future visits are removed from history without closing the website." : "The timer resets on every new visit."}</p>
     </section>
     <button className="btn-secondary mt-3 w-full" onClick={() => chrome.runtime.openOptionsPage()}>Open dashboard</button>
     <p className="muted mb-0 mt-3 text-center text-[10px]">Processed locally. Nothing leaves your browser.</p>

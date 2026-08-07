@@ -1,7 +1,7 @@
 import { storage } from "../shared/storage";
 import { categorizeHistoryEntries } from "../shared/categories";
 import type { CategoryScanResult, HistoryCandidate, RetentionRule, ScanResult } from "../shared/types";
-import { durationToMs, findWinningRule, matchesRule } from "./matcher";
+import { findWinningRule, getExpirationTime, matchesRule } from "./matcher";
 import { isProtectedUrl } from "./protection";
 
 const CATEGORY_SCAN_LIMIT = 1_000_000;
@@ -45,7 +45,7 @@ export async function scanHistory(deleteExpired = false, forceDelete = false): P
     if (!item.url || !item.lastVisitTime || isProtectedUrl(item.url, protectedDomains)) continue;
     const rule = findWinningRule(item.url, rules, overrides);
     if (!rule) continue;
-    const expiresAt = item.lastVisitTime + durationToMs(rule);
+    const expiresAt = getExpirationTime(item.lastVisitTime, rule);
     candidates.push({
       url: item.url,
       title: item.title || item.url,
@@ -84,7 +84,7 @@ export async function cleanExpiredForRule(rule: RetentionRule): Promise<number> 
   const history = await chrome.history.search({ text: "", startTime: 0, maxResults: 100_000 });
   const expiredUrls = [...new Set(history.flatMap((item) => {
     if (!item.url || !item.lastVisitTime || isProtectedUrl(item.url, protectedDomains) || !matchesRule(item.url, rule, overrides)) return [];
-    return item.lastVisitTime + durationToMs(rule) <= now ? [item.url] : [];
+    return getExpirationTime(item.lastVisitTime, rule) <= now ? [item.url] : [];
   }))];
   for (const url of expiredUrls) await chrome.history.deleteUrl({ url });
   if (expiredUrls.length) await storage.addActivity({
@@ -92,4 +92,27 @@ export async function cleanExpiredForRule(rule: RetentionRule): Promise<number> 
     message: `${expiredUrls.length} site${expiredUrls.length === 1 ? "" : "s"} removed by a category rule`,
   }, settings.maxLogEntries);
   return expiredUrls.length;
+}
+
+export async function deleteVisitedUrlImmediately(url: string): Promise<boolean> {
+  const [rules, settings, overrides, protectedDomains] = await Promise.all([
+    storage.getRules(),
+    storage.getSettings(),
+    storage.getCategoryOverrides(),
+    storage.getProtectedDomains(),
+  ]);
+  if (!settings.enabled || isProtectedUrl(url, protectedDomains)) return false;
+
+  const rule = findWinningRule(url, rules, overrides);
+  if (!rule?.deleteImmediately) return false;
+
+  await chrome.history.deleteUrl({ url });
+  await storage.addActivity({
+    id: crypto.randomUUID(),
+    timestamp: Date.now(),
+    type: "deleted",
+    count: 1,
+    message: "1 site removed immediately by a rule",
+  }, settings.maxLogEntries);
+  return true;
 }

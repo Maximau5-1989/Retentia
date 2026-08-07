@@ -1,6 +1,6 @@
 # Retentia
 
-Retentia is a privacy-first Chrome extension that gives selected browser history a configurable expiration date. All processing happens locally.
+Define how long your browser history should exist. Create retention policies for domains, URLs and patterns. Retentia automatically enforces your privacy rules—even after your computer has been offline for days.
 
 ## Features
 

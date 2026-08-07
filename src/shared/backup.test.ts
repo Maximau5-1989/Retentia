@@ -64,6 +64,21 @@ describe("Retentia backups", () => {
     expect(parseBackup(JSON.stringify(adultBackup)).categoryOverrides).toEqual({ "private.example": "adult" });
   });
 
+  it("preserves rejected category suggestions and supports older backups", () => {
+    const rejectedBackup = createBackup({
+      appVersion: backup.appVersion,
+      rules: [],
+      settings: backup.settings,
+      categoryOverrides: {},
+      categoryRejections: { "example.com": ["adult", "entertainment"] },
+      protectedDomains: [],
+    });
+    expect(parseBackup(JSON.stringify(rejectedBackup)).categoryRejections).toEqual({ "example.com": ["adult", "entertainment"] });
+
+    const { categoryRejections: _legacyMissing, ...legacyBackup } = rejectedBackup;
+    expect(parseBackup(JSON.stringify(legacyBackup)).categoryRejections).toEqual({});
+  });
+
   it("preserves additional URLs and domains attached to existing rules", () => {
     const ruleWithAdditionalUrl: RetentionRule = {
       id: "grouped",

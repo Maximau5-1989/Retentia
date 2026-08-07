@@ -13,7 +13,7 @@ import { sessionStorage, storage } from "../shared/storage";
 import { CATEGORY_PRESETS, getCategoryPreset, suggestCategory } from "../shared/categories";
 import { addMissingDefaultCategoryRules, DEFAULT_CATEGORY_RULES_VERSION } from "../shared/default-rules";
 import { createBackup, parseBackup } from "../shared/backup";
-import type { ActivityEntry, CategoryId, CategoryOverrides, CategoryScanResult, RetentionRule, RuleKind, ScanResult, Settings, TimeUnit } from "../shared/types";
+import type { ActivityEntry, CategoryId, CategoryOverrides, CategoryRejections, CategoryScanResult, RetentionRule, RuleKind, ScanResult, Settings, TimeUnit } from "../shared/types";
 import "../styles.css";
 
 type View = "overview" | "rules" | "categories" | "simulator" | "activity" | "settings";
@@ -66,6 +66,7 @@ function Dashboard() {
   const [categoryScan, setCategoryScan] = useState<CategoryScanResult>();
   const [scanningCategories, setScanningCategories] = useState(false);
   const [categoryOverrides, setCategoryOverrides] = useState<CategoryOverrides>({});
+  const [categoryRejections, setCategoryRejections] = useState<CategoryRejections>({});
   const [protectedDomains, setProtectedDomains] = useState<string[]>([]);
   const [protectedDraft, setProtectedDraft] = useState("");
   const [manualRuleId, setManualRuleId] = useState("");
@@ -81,8 +82,8 @@ function Dashboard() {
     const accessGranted = Boolean(loadedSettings.testingBypassPassword) || unlocked;
     setAppUnlocked(accessGranted);
     if (accessGranted) {
-      const [loadedRules, loadedOverrides, loadedProtected] = await Promise.all([loadRulesWithDefaults(), storage.getCategoryOverrides(), storage.getProtectedDomains()]);
-      setRules(loadedRules); setCategoryOverrides(loadedOverrides); setProtectedDomains(loadedProtected);
+      const [loadedRules, loadedOverrides, loadedRejections, loadedProtected] = await Promise.all([loadRulesWithDefaults(), storage.getCategoryOverrides(), storage.getCategoryRejections(), storage.getProtectedDomains()]);
+      setRules(loadedRules); setCategoryOverrides(loadedOverrides); setCategoryRejections(loadedRejections); setProtectedDomains(loadedProtected);
       setManualRuleId((current) => current || loadedRules[0]?.id || "");
       await chrome.runtime.sendMessage({ type: "REGISTER_DASHBOARD_TAB" });
       applyPendingRuleUrl();
@@ -174,12 +175,34 @@ function Dashboard() {
     setNotice(`Default rules activated · ${result.deleted} matching history URL${result.deleted === 1 ? "" : "s"} removed`);
   }
   async function moveDomain(domain: string, category?: CategoryId) {
-    const overrides = await storage.getCategoryOverrides();
+    const [overrides, rejections] = await Promise.all([storage.getCategoryOverrides(), storage.getCategoryRejections()]);
     if (category) overrides[domain] = category; else delete overrides[domain];
-    await storage.setCategoryOverrides(overrides);
+    if (category && rejections[domain]?.includes(category)) {
+      rejections[domain] = rejections[domain].filter((item) => item !== category);
+      if (!rejections[domain].length) delete rejections[domain];
+    }
+    await Promise.all([storage.setCategoryOverrides(overrides), storage.setCategoryRejections(rejections)]);
     setCategoryOverrides({ ...overrides });
+    setCategoryRejections({ ...rejections });
     setCategoryScan(await scanHistoryCategories());
     setNotice(category ? `${domain} moved to ${getCategoryPreset(category)?.label}` : `${domain} restored to automatic categorization`);
+  }
+  async function rejectCategorySuggestion(domain: string, category: CategoryId) {
+    const rejections = await storage.getCategoryRejections();
+    rejections[domain] = [...new Set([...(rejections[domain] ?? []), category])];
+    await storage.setCategoryRejections(rejections);
+    setCategoryRejections({ ...rejections });
+    setCategoryScan(await scanHistoryCategories());
+    setNotice(`${domain} will no longer be suggested for ${getCategoryPreset(category)?.label}`);
+  }
+  async function restoreCategorySuggestion(domain: string, category: CategoryId) {
+    const rejections = await storage.getCategoryRejections();
+    rejections[domain] = (rejections[domain] ?? []).filter((item) => item !== category);
+    if (!rejections[domain].length) delete rejections[domain];
+    await storage.setCategoryRejections(rejections);
+    setCategoryRejections({ ...rejections });
+    if (categoryScan) setCategoryScan(await scanHistoryCategories());
+    setNotice(`${getCategoryPreset(category)?.label} suggestion restored for ${domain}`);
   }
   async function toggleCategoryRule(category: CategoryId) {
     const preset = getCategoryPreset(category)!;
@@ -220,8 +243,8 @@ function Dashboard() {
     await storage.setProtectedDomains(next); setProtectedDomains(next); setNotice(`${domain} removed from protection`);
   }
   async function exportBackup() {
-    const [backupRules, backupSettings, overrides, domains] = await Promise.all([storage.getRules(), storage.getSettings(), storage.getCategoryOverrides(), storage.getProtectedDomains()]);
-    const backup = createBackup({ appVersion: extensionVersion, rules: backupRules, settings: backupSettings, categoryOverrides: overrides, protectedDomains: domains });
+    const [backupRules, backupSettings, overrides, rejections, domains] = await Promise.all([storage.getRules(), storage.getSettings(), storage.getCategoryOverrides(), storage.getCategoryRejections(), storage.getProtectedDomains()]);
+    const backup = createBackup({ appVersion: extensionVersion, rules: backupRules, settings: backupSettings, categoryOverrides: overrides, categoryRejections: rejections, protectedDomains: domains });
     const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }));
     const link = document.createElement("a"); link.href = url; link.download = `retentia-backup-v${extensionVersion}.json`; link.click(); URL.revokeObjectURL(url);
     setNotice("Privacy-safe backup exported");
@@ -231,8 +254,9 @@ function Dashboard() {
     try {
       const backup = parseBackup(await file.text());
       if (!confirm(`Restore ${backup.rules.length} rules, settings, category overrides, and protected websites? Current configuration will be replaced. Password, activity totals, and browser history are unchanged.`)) return;
-      await Promise.all([storage.setRules(backup.rules), storage.setSettings(backup.settings), storage.setCategoryOverrides(backup.categoryOverrides), storage.setProtectedDomains(backup.protectedDomains)]);
-      setRules(backup.rules); setSettings(backup.settings); setCategoryOverrides(backup.categoryOverrides); setProtectedDomains(backup.protectedDomains); setNotice("Backup restored successfully");
+      const restoredRejections = backup.categoryRejections ?? {};
+      await Promise.all([storage.setRules(backup.rules), storage.setSettings(backup.settings), storage.setCategoryOverrides(backup.categoryOverrides), storage.setCategoryRejections(restoredRejections), storage.setProtectedDomains(backup.protectedDomains)]);
+      setRules(backup.rules); setSettings(backup.settings); setCategoryOverrides(backup.categoryOverrides); setCategoryRejections(restoredRejections); setProtectedDomains(backup.protectedDomains); setNotice("Backup restored successfully");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Backup restore failed"); }
   }
   async function updateSettings(next: Settings) { setSettings(next); await storage.setSettings(next); }
@@ -273,8 +297,8 @@ function Dashboard() {
   }
   async function unlockApplication() {
     await sessionStorage.unlock();
-    const [loadedRules, loadedOverrides, loadedProtected] = await Promise.all([loadRulesWithDefaults(), storage.getCategoryOverrides(), storage.getProtectedDomains()]);
-    setRules(loadedRules); setCategoryOverrides(loadedOverrides); setProtectedDomains(loadedProtected);
+    const [loadedRules, loadedOverrides, loadedRejections, loadedProtected] = await Promise.all([loadRulesWithDefaults(), storage.getCategoryOverrides(), storage.getCategoryRejections(), storage.getProtectedDomains()]);
+    setRules(loadedRules); setCategoryOverrides(loadedOverrides); setCategoryRejections(loadedRejections); setProtectedDomains(loadedProtected);
     setManualRuleId((current) => current || loadedRules[0]?.id || "");
     setAppUnlocked(true);
     await chrome.runtime.sendMessage({ type: "REGISTER_DASHBOARD_TAB" });
@@ -283,7 +307,7 @@ function Dashboard() {
   async function resetProtectedData() {
     if (!confirm("Reset Retentia security? This permanently deletes the password, all retention rules, and the activity log. Browser history will NOT be deleted.")) return;
     await storage.resetProtectedData();
-    await sessionStorage.lock(); setRules([]); setActivity([]); setLastScan(null); setPasswordReady(false); setAppUnlocked(false); setView("overview");
+    await sessionStorage.lock(); setRules([]); setActivity([]); setLastScan(null); setCategoryRejections({}); setPasswordReady(false); setAppUnlocked(false); setView("overview");
   }
 
   useEffect(() => {
@@ -295,6 +319,7 @@ function Dashboard() {
   const ruleConflicts = detectRuleConflicts(rules, categoryOverrides);
   const deletedCount = activity.filter((entry) => entry.type === "deleted").reduce((total, entry) => total + (entry.count ?? 0), 0);
   const selectedManualRule = rules.find((rule) => rule.id === manualRuleId);
+  const rejectedCategorySuggestions = Object.entries(categoryRejections).flatMap(([domain, categories]) => categories.map((category) => ({ domain, category })));
 
   if (!settings) return <div className="p-8">Loading Retentia…</div>;
   return <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#edf7e7,transparent_34%),#f5f7f3]">
@@ -316,7 +341,9 @@ function Dashboard() {
 
         {view === "categories" && <section><div className="card mb-6 flex flex-wrap items-center justify-between gap-4 p-6"><div><h3 className="m-0 text-lg font-extrabold">Local history classifier</h3><p className="muted mb-0 mt-1 max-w-2xl text-sm">Classifies Chrome history locally from known domains, URL structure, and stored page titles. Retentia never opens pages or reads page content. URLs, titles, domains, and scan results are not saved.</p></div><button className="btn-primary" disabled={scanningCategories} onClick={runCategoryScan}>{scanningCategories ? 'Scanning history…' : categoryScan ? 'Scan again' : 'Scan all history'}</button></div>{categoryScan ? <><div className="mb-5 grid gap-4 md:grid-cols-3">{[[categoryScan.scanned,'History URLs scanned'],[categoryScan.categorized,'High-confidence matches'],[categoryScan.uncategorized,'Uncategorized or uncertain']].map(([value,label]) => <div className="card p-5" key={label}><strong className="text-3xl">{value}</strong><p className="muted mb-0 mt-1 text-sm font-semibold">{label}</p></div>)}</div>{categoryScan.resultLimitReached && <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">Chrome returned the one-million-result safety limit. The displayed totals may not include older entries beyond that limit.</div>}<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{categoryScan.buckets.map(bucket => { const preset=getCategoryPreset(bucket.category); const possible=preset ? countSuggestedUrls(categoryScan, preset.id) : 0; return <article className="card p-5" key={bucket.category ?? 'uncategorized'}><div className="flex items-start justify-between gap-3"><div><h3 className="m-0 text-base font-extrabold">{preset?.label ?? 'Uncategorized'}</h3><p className="muted mb-0 mt-1 text-xs">{preset?.description ?? 'No high-confidence local match was found.'}</p></div><span className="pill">{bucket.urls}</span></div><div className="muted mt-4 text-xs font-semibold">{bucket.visits} recorded visits</div>{possible > 0 && <div className="mt-2 text-xs font-bold text-amber-700 dark:text-amber-300">{possible} possible match{possible === 1 ? '' : 'es'} for review</div>}{preset && <div className="mt-3 text-xs font-bold">{preset.deleteImmediately ? 'Suggested deletion: immediately after visit' : `Suggested retention: ${preset.duration} ${preset.unit}`}</div>}</article>})}</div><p className="muted mt-5 text-xs">High-confidence matches may be used by category rules. Possible matches stay uncategorized until you move their domain manually. Closing or refreshing this page discards all scan details.</p></> : <div className="card p-12 text-center"><h3>Nothing has been scanned yet</h3><p className="muted mx-auto max-w-xl">Start a local scan to classify history without opening websites or reading their page content. Every category remains visible, including categories with zero matches.</p></div>}</section>}
 
-        {view === "categories" && categoryScan && CATEGORY_PRESETS.map(preset => { const possibleDomains=getSuggestedDomains(categoryScan, preset.id); return possibleDomains.length > 0 ? <section className="card mb-6 overflow-hidden border-amber-300 dark:border-amber-700" key={`review-${preset.id}`}><div className="border-b border-amber-200 bg-amber-50 p-5 dark:border-amber-800 dark:bg-amber-950"><h3 className="m-0 text-lg font-extrabold">Review possible matches for {preset.label}</h3><p className="muted mb-0 mt-1 text-sm">These domains are only suggestions and cannot be removed by a category rule until you confirm them.</p></div><div>{possibleDomains.map(item => <div className="flex items-center gap-4 border-t border-[#edf0ea] px-5 py-4 first:border-t-0 dark:border-[#29394a]" key={`review-${preset.id}-${item.domain}`}><div className="min-w-0 flex-1"><div className="truncate text-sm font-bold">{item.domain}</div><div className="muted text-xs">{item.urls} URLs · {item.visits} visits · confidence score {item.score}</div></div><button className="btn-primary shrink-0" onClick={() => void moveDomain(item.domain, preset.id)}>Confirm {preset.label}</button></div>)}</div></section> : null; })}
+        {view === "categories" && categoryScan && CATEGORY_PRESETS.map(preset => { const possibleDomains=getSuggestedDomains(categoryScan, preset.id); return possibleDomains.length > 0 ? <section className="card mb-6 overflow-hidden border-amber-300 dark:border-amber-700" key={`review-${preset.id}`}><div className="border-b border-amber-200 bg-amber-50 p-5 dark:border-amber-800 dark:bg-amber-950"><h3 className="m-0 text-lg font-extrabold">Review possible matches for {preset.label}</h3><p className="muted mb-0 mt-1 text-sm">Confirm a correct suggestion or reject it. Rejected domains remain uncategorized and are not suggested for this category again.</p></div><div>{possibleDomains.map(item => <div className="flex items-center gap-4 border-t border-[#edf0ea] px-5 py-4 first:border-t-0 dark:border-[#29394a]" key={`review-${preset.id}-${item.domain}`}><div className="min-w-0 flex-1"><div className="truncate text-sm font-bold">{item.domain}</div><div className="muted text-xs">{item.urls} URLs · {item.visits} visits · confidence score {item.score}</div></div><div className="flex shrink-0 gap-2"><button className="btn-secondary" onClick={() => void rejectCategorySuggestion(item.domain, preset.id)}>Reject</button><button className="btn-primary" onClick={() => void moveDomain(item.domain, preset.id)}>Confirm {preset.label}</button></div></div>)}</div></section> : null; })}
+
+        {view === "categories" && rejectedCategorySuggestions.length > 0 && <section className="card mb-6 overflow-hidden"><div className="border-b border-[#e5eae2] p-5 dark:border-[#2b3a4b]"><h3 className="m-0 text-lg font-extrabold">Rejected category suggestions</h3><p className="muted mb-0 mt-1 text-sm">These domains remain uncategorized for the rejected suggestion. Restore one if you want Retentia to review it again.</p></div><div>{rejectedCategorySuggestions.map(item => <div className="flex items-center gap-4 border-t border-[#edf0ea] px-5 py-4 first:border-t-0 dark:border-[#29394a]" key={`rejected-${item.domain}-${item.category}`}><div className="min-w-0 flex-1"><div className="truncate text-sm font-bold">{item.domain}</div><div className="muted text-xs">Rejected for {getCategoryPreset(item.category)?.label}</div></div><button className="btn-secondary shrink-0" onClick={() => void restoreCategorySuggestion(item.domain, item.category)}>Restore suggestion</button></div>)}</div></section>}
 
         {view === "categories" && <div className="card mb-6 p-6"><h3 className="mt-0 text-lg font-extrabold">Default category rules</h3><p className="muted text-sm">Prepare all built-in categories as disabled rules, or activate them and remove matching history according to each rule's deletion timing. Immediate categories remove every match.</p><div className="flex flex-wrap gap-3"><button className="btn-secondary" onClick={() => void prepareDefaultRules(false)}>Prepare disabled rules</button><button className="btn-danger" onClick={() => void prepareDefaultRules(true)}>Activate and clean matching history</button></div></div>}
 
@@ -334,7 +361,7 @@ function Dashboard() {
 
         {view === "settings" && <section className="card mb-6 max-w-3xl p-7"><h3 className="mt-0 text-lg font-extrabold">Protected websites</h3><p className="muted text-sm">Protected domains and all of their subdomains are skipped by previews, manual deletion, category cleanup, and automatic cleanup.</p><form className="flex gap-3" onSubmit={addProtectedDomain}><input className="field flex-1" value={protectedDraft} onChange={event => setProtectedDraft(event.target.value)} placeholder="bank.example or https://portal.example"/><button className="btn-primary" type="submit">Protect website</button></form><div className="mt-5 space-y-2">{protectedDomains.length ? protectedDomains.map(domain => <div className="flex items-center justify-between rounded-xl border border-[#e5eae2] px-4 py-3 dark:border-[#2b3a4b]" key={domain}><span className="font-bold">{domain}</span><button className="btn-danger" onClick={() => void removeProtectedDomain(domain)}>Remove</button></div>) : <p className="muted text-sm">No websites are protected yet.</p>}</div></section>}
 
-        {view === "settings" && <section className="card mb-6 max-w-3xl p-7"><h3 className="mt-0 text-lg font-extrabold">Backup and restore</h3><p className="muted text-sm">Export rules, settings, category overrides, and protected websites. Passwords, activity totals, scan results, and browser history are never included.</p><div className="flex flex-wrap gap-3"><button className="btn-secondary" onClick={() => void exportBackup()}>Export backup</button><label className="btn-primary cursor-pointer">Restore backup<input className="hidden" type="file" accept="application/json,.json" onChange={event => { void importBackup(event.target.files?.[0]); event.target.value=''; }}/></label></div></section>}
+        {view === "settings" && <section className="card mb-6 max-w-3xl p-7"><h3 className="mt-0 text-lg font-extrabold">Backup and restore</h3><p className="muted text-sm">Export rules, settings, category overrides, rejected suggestions, and protected websites. Passwords, activity totals, scan results, and browser history are never included.</p><div className="flex flex-wrap gap-3"><button className="btn-secondary" onClick={() => void exportBackup()}>Export backup</button><label className="btn-primary cursor-pointer">Restore backup<input className="hidden" type="file" accept="application/json,.json" onChange={event => { void importBackup(event.target.files?.[0]); event.target.value=''; }}/></label></div></section>}
 
         {view === "rules" && <div className="grid items-start gap-6 xl:grid-cols-[.9fr_1.35fr]">
           <div className="space-y-6">

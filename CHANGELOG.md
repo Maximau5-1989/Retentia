@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.4 — 2026-08-07
+
+- Added persistent local rejection and restoration controls for uncertain category scan suggestions.
+
 ## 1.6.3 — 2026-08-07
 
 - Added manual domain and exact-URL attachments for existing built-in and custom rules, with a more robust Chrome History handoff.

@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS, SESSION_KEYS, STORAGE_KEYS } from "./defaults";
-import type { ActivityEntry, AuthThrottle, CategoryOverrides, PasswordRecord, ProtectedDomains, RetentionRule, ScanResult, Settings } from "./types";
+import type { ActivityEntry, AuthThrottle, CategoryOverrides, CategoryRejections, PasswordRecord, ProtectedDomains, RetentionRule, ScanResult, Settings } from "./types";
 
 async function getLocal<T>(key: string, fallback: T): Promise<T> {
   const result = await chrome.storage.local.get(key);
@@ -11,6 +11,8 @@ export const storage = {
   setRules: (rules: RetentionRule[]) => chrome.storage.local.set({ [STORAGE_KEYS.rules]: rules }),
   getCategoryOverrides: () => getLocal<CategoryOverrides>(STORAGE_KEYS.categoryOverrides, {}),
   setCategoryOverrides: (overrides: CategoryOverrides) => chrome.storage.local.set({ [STORAGE_KEYS.categoryOverrides]: overrides }),
+  getCategoryRejections: () => getLocal<CategoryRejections>(STORAGE_KEYS.categoryRejections, {}),
+  setCategoryRejections: (rejections: CategoryRejections) => chrome.storage.local.set({ [STORAGE_KEYS.categoryRejections]: rejections }),
   getProtectedDomains: () => getLocal<ProtectedDomains>(STORAGE_KEYS.protectedDomains, []),
   setProtectedDomains: (domains: ProtectedDomains) => chrome.storage.local.set({ [STORAGE_KEYS.protectedDomains]: domains }),
   getDefaultCategoryRulesVersion: () => getLocal<number>(STORAGE_KEYS.defaultCategoryRulesVersion, 0),
@@ -35,7 +37,7 @@ export const storage = {
   resetAuthThrottle: () => chrome.storage.local.set({ [STORAGE_KEYS.authThrottle]: { failedAttempts: 0, lockUntil: 0 } }),
   async resetProtectedData(): Promise<void> {
     const settings = await this.getSettings();
-    await chrome.storage.local.remove([STORAGE_KEYS.password, STORAGE_KEYS.rules, STORAGE_KEYS.activity, STORAGE_KEYS.lastScan, STORAGE_KEYS.authThrottle, STORAGE_KEYS.categoryOverrides, STORAGE_KEYS.protectedDomains, STORAGE_KEYS.defaultCategoryRulesVersion]);
+    await chrome.storage.local.remove([STORAGE_KEYS.password, STORAGE_KEYS.rules, STORAGE_KEYS.activity, STORAGE_KEYS.lastScan, STORAGE_KEYS.authThrottle, STORAGE_KEYS.categoryOverrides, STORAGE_KEYS.categoryRejections, STORAGE_KEYS.protectedDomains, STORAGE_KEYS.defaultCategoryRulesVersion]);
     await this.setSettings({ ...settings, onboardingComplete: false, testingBypassPassword: false });
   },
   async sanitizePrivacyData(): Promise<void> {

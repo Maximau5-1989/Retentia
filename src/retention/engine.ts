@@ -7,8 +7,8 @@ import { isProtectedUrl } from "./protection";
 const CATEGORY_SCAN_LIMIT = 1_000_000;
 
 export async function scanHistoryCategories(): Promise<CategoryScanResult> {
-  const [history, overrides] = await Promise.all([chrome.history.search({ text: "", startTime: 0, maxResults: CATEGORY_SCAN_LIMIT }), storage.getCategoryOverrides()]);
-  const buckets = categorizeHistoryEntries(history, overrides);
+  const [history, overrides, rejections] = await Promise.all([chrome.history.search({ text: "", startTime: 0, maxResults: CATEGORY_SCAN_LIMIT }), storage.getCategoryOverrides(), storage.getCategoryRejections()]);
+  const buckets = categorizeHistoryEntries(history, overrides, rejections);
   const categorized = buckets.filter((bucket) => bucket.category).reduce((total, bucket) => total + bucket.urls, 0);
   const uncategorized = buckets.find((bucket) => !bucket.category)?.urls ?? 0;
   return {

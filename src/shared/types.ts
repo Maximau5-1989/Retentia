@@ -85,6 +85,7 @@ export interface CategoryScanDomain {
 }
 
 export type CategoryOverrides = Record<string, CategoryId>;
+export type CategoryRejections = Record<string, CategoryId[]>;
 export type ProtectedDomains = string[];
 
 export interface RetentiaBackup {
@@ -95,6 +96,7 @@ export interface RetentiaBackup {
   rules: RetentionRule[];
   settings: Settings;
   categoryOverrides: CategoryOverrides;
+  categoryRejections?: CategoryRejections;
   protectedDomains: ProtectedDomains;
 }
 

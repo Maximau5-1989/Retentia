@@ -1,4 +1,4 @@
-import type { CategoryId, CategoryOverrides, CategoryScanBucket, CategoryScanDomain, TimeUnit } from "./types";
+import type { CategoryId, CategoryOverrides, CategoryRejections, CategoryScanBucket, CategoryScanDomain, TimeUnit } from "./types";
 
 export type CategoryConfidence = "high" | "medium" | "none";
 
@@ -183,7 +183,7 @@ export function resolveCategory(input: string, overrides: CategoryOverrides = {}
   return classifyCategory(input, title, overrides).category;
 }
 
-export function categorizeHistoryEntries(entries: ReadonlyArray<{ url?: string; title?: string; visitCount?: number }>, overrides: CategoryOverrides = {}): CategoryScanBucket[] {
+export function categorizeHistoryEntries(entries: ReadonlyArray<{ url?: string; title?: string; visitCount?: number }>, overrides: CategoryOverrides = {}, rejections: CategoryRejections = {}): CategoryScanBucket[] {
   const buckets = new Map<CategoryId | undefined, CategoryScanBucket>();
   for (const preset of CATEGORY_PRESETS) {
     buckets.set(preset.id, { category: preset.id, urls: 0, visits: 0, domains: [] });
@@ -198,6 +198,11 @@ export function categorizeHistoryEntries(entries: ReadonlyArray<{ url?: string; 
     const domain = normalizeHostname(entry.url);
     if (!domain) continue;
     const classification = classifyCategory(entry.url, entry.title, overrides);
+    if (classification.suggestedCategory && rejections[domain]?.includes(classification.suggestedCategory)) {
+      classification.suggestedCategory = undefined;
+      classification.confidence = "none";
+      classification.score = 0;
+    }
     const category = classification.category;
     const bucket = buckets.get(category)!;
     const key = `${domain}|${classification.suggestedCategory ?? ""}`;

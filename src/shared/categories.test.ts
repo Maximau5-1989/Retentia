@@ -30,6 +30,20 @@ describe("local category classifier", () => {
     expect(result.category).toBeUndefined();
   });
 
+  it("keeps a rejected domain uncategorized without repeating that category suggestion", () => {
+    const bucket = categorizeHistoryEntries(
+      [{ url: "https://example.com/adult", title: "Adult area", visitCount: 1 }],
+      {},
+      { "example.com": ["adult"] },
+    ).find((item) => !item.category);
+    expect(bucket?.domains[0]).toMatchObject({
+      domain: "example.com",
+      confidence: "none",
+      score: 0,
+    });
+    expect(bucket?.domains[0].suggestedCategory).toBeUndefined();
+  });
+
   it("does not classify weak or misleading text", () => {
     expect(suggestCategory("https://example.com/products")).toBeUndefined();
     expect(classifyCategory("https://sussex.example/about", "University information").category).toBeUndefined();

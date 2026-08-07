@@ -1,4 +1,4 @@
-import type { CategoryId, CategoryOverrides, RetentiaBackup, RetentionRule, RuleKind, Settings, TimeUnit } from "./types";
+import type { CategoryId, CategoryOverrides, CategoryRejections, RetentiaBackup, RetentionRule, RuleKind, Settings, TimeUnit } from "./types";
 
 const RULE_KINDS = new Set<RuleKind>(["exact", "domain", "category", "wildcard", "regex"]);
 const TIME_UNITS = new Set<TimeUnit>(["minutes", "hours", "days"]);
@@ -10,6 +10,7 @@ export function createBackup(data: Omit<RetentiaBackup, "format" | "schemaVersio
     schemaVersion: 1,
     exportedAt: new Date().toISOString(),
     ...data,
+    categoryRejections: data.categoryRejections ?? {},
     settings: { ...data.settings, testingBypassPassword: false },
   };
 }
@@ -20,9 +21,10 @@ export function parseBackup(input: string): RetentiaBackup {
   if (!Array.isArray(value.rules) || !value.rules.every(isRule)) throw new Error("The backup contains invalid retention rules.");
   if (!isSettings(value.settings)) throw new Error("The backup contains invalid settings.");
   if (!isOverrides(value.categoryOverrides)) throw new Error("The backup contains invalid category overrides.");
+  if (value.categoryRejections !== undefined && !isRejections(value.categoryRejections)) throw new Error("The backup contains invalid rejected category suggestions.");
   if (!Array.isArray(value.protectedDomains) || !value.protectedDomains.every((domain) => typeof domain === "string")) throw new Error("The backup contains invalid protected websites.");
   if (typeof value.exportedAt !== "string" || typeof value.appVersion !== "string") throw new Error("The backup metadata is incomplete.");
-  return { ...value, settings: { ...value.settings, testingBypassPassword: false } } as unknown as RetentiaBackup;
+  return { ...value, categoryRejections: value.categoryRejections ?? {}, settings: { ...value.settings, testingBypassPassword: false } } as unknown as RetentiaBackup;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -51,4 +53,8 @@ function isSettings(value: unknown): value is Settings {
 
 function isOverrides(value: unknown): value is CategoryOverrides {
   return isRecord(value) && Object.values(value).every((category) => CATEGORY_IDS.has(category as CategoryId));
+}
+
+function isRejections(value: unknown): value is CategoryRejections {
+  return isRecord(value) && Object.values(value).every((categories) => Array.isArray(categories) && categories.every((category) => CATEGORY_IDS.has(category as CategoryId)));
 }

@@ -24,6 +24,11 @@ describe("default category rules", () => {
     expect(result.additions.every((rule) => rule.kind === "category" && !rule.enabled)).toBe(true);
     expect(result.additions.map((rule) => rule.pattern)).toEqual(CATEGORY_PRESETS.map((preset) => preset.id));
     expect(result.additions.map((rule) => rule.name)).toEqual(CATEGORY_PRESETS.map((preset) => preset.label));
+    expect(result.additions.find((rule) => rule.pattern === "adult")).toMatchObject({
+      name: "18+",
+      enabled: false,
+      deleteImmediately: true,
+    });
   });
 
   it("preserves existing rules and does not duplicate an existing category", () => {

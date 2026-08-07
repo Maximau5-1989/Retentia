@@ -5,6 +5,7 @@ describe("category suggestions", () => {
   it("recognizes known domains and their subdomains", () => {
     expect(suggestCategory("https://www.youtube.com/watch?v=1")?.id).toBe("streaming");
     expect(suggestCategory("news.bbc.com")?.id).toBe("news");
+    expect(suggestCategory("https://www.pornhub.com/view_video.php")?.id).toBe("adult");
   });
 
   it("does not guess a category for unknown domains", () => {
@@ -32,5 +33,11 @@ describe("category suggestions", () => {
   it("lets local overrides move a domain into another category", () => {
     expect(resolveCategory("youtube.com", { "youtube.com": "entertainment" })).toBe("entertainment");
     expect(categorizeHistoryEntries([{ url: "https://youtube.com/watch", visitCount: 1 }], { "youtube.com": "entertainment" })[0].domains[0].overridden).toBe(true);
+  });
+
+  it("keeps the 18+ preset opt-in and configured for immediate deletion", () => {
+    const preset = suggestCategory("xvideos.com");
+    expect(preset?.label).toBe("18+");
+    expect(preset?.deleteImmediately).toBe(true);
   });
 });

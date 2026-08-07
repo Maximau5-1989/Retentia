@@ -2,7 +2,7 @@ import type { CategoryId, CategoryOverrides, RetentiaBackup, RetentionRule, Rule
 
 const RULE_KINDS = new Set<RuleKind>(["exact", "domain", "category", "wildcard", "regex"]);
 const TIME_UNITS = new Set<TimeUnit>(["minutes", "hours", "days"]);
-const CATEGORY_IDS = new Set<CategoryId>(["social", "shopping", "news", "streaming", "search", "travel", "entertainment"]);
+const CATEGORY_IDS = new Set<CategoryId>(["social", "shopping", "news", "streaming", "search", "travel", "entertainment", "adult"]);
 
 export function createBackup(data: Omit<RetentiaBackup, "format" | "schemaVersion" | "exportedAt">): RetentiaBackup {
   return { format: "retentia-backup", schemaVersion: 1, exportedAt: new Date().toISOString(), ...data };

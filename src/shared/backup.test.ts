@@ -39,4 +39,15 @@ describe("Retentia backups", () => {
     });
     expect(parseBackup(JSON.stringify(immediateBackup)).rules[0].deleteImmediately).toBe(true);
   });
+
+  it("accepts local 18+ category overrides", () => {
+    const adultBackup = createBackup({
+      appVersion: backup.appVersion,
+      rules: [],
+      settings: backup.settings,
+      categoryOverrides: { "private.example": "adult" },
+      protectedDomains: backup.protectedDomains,
+    });
+    expect(parseBackup(JSON.stringify(adultBackup)).categoryOverrides).toEqual({ "private.example": "adult" });
+  });
 });

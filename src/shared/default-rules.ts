@@ -1,7 +1,7 @@
 import { CATEGORY_PRESETS } from "./categories";
 import type { RetentionRule } from "./types";
 
-export const DEFAULT_CATEGORY_RULES_VERSION = 2;
+export const DEFAULT_CATEGORY_RULES_VERSION = 3;
 
 interface DefaultRuleOptions {
   enabled?: boolean;
@@ -38,6 +38,7 @@ export function addMissingDefaultCategoryRules(
       category: preset.id,
       duration: preset.duration,
       unit: preset.unit,
+      deleteImmediately: preset.deleteImmediately ?? false,
       enabled,
       priority: 40 - index,
       createdAt: now + index,

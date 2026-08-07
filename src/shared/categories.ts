@@ -6,6 +6,7 @@ export interface CategoryPreset {
   description: string;
   duration: number;
   unit: TimeUnit;
+  deleteImmediately?: boolean;
   domains: readonly string[];
 }
 
@@ -65,6 +66,15 @@ export const CATEGORY_PRESETS: readonly CategoryPreset[] = [
     duration: 30,
     unit: "days",
     domains: ["fandom.com", "ign.com", "imdb.com", "playstation.com", "steamcommunity.com", "steampowered.com", "xbox.com"],
+  },
+  {
+    id: "adult",
+    label: "18+",
+    description: "Adult-content websites, recognized locally from a transparent domain list.",
+    duration: 1,
+    unit: "days",
+    deleteImmediately: true,
+    domains: ["chaturbate.com", "onlyfans.com", "pornhub.com", "redtube.com", "xhamster.com", "xnxx.com", "xvideos.com", "youporn.com"],
   },
 ] as const;
 

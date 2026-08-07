@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.1 — 2026-08-07
+
+- Added an optional privacy-first 18+ category with local domain recognition, a disabled immediate-deletion rule, scanner support, category overrides, and backup compatibility.
+
 ## 1.5.0 — 2026-08-07
 
 - Added an immediate-deletion rule mode for URLs, domains, patterns, and categories while preserving protected websites and rule priority.

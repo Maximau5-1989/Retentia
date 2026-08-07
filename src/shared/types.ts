@@ -1,6 +1,6 @@
 export type RuleKind = "exact" | "domain" | "category" | "wildcard" | "regex";
 export type TimeUnit = "minutes" | "hours" | "days";
-export type CategoryId = "social" | "shopping" | "news" | "streaming" | "search" | "travel" | "entertainment";
+export type CategoryId = "social" | "shopping" | "news" | "streaming" | "search" | "travel" | "entertainment" | "adult";
 
 export interface RetentionRule {
   id: string;

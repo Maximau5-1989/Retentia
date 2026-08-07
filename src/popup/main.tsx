@@ -26,7 +26,7 @@ function Popup() {
       setTab(activeTab); setSettings(value); setPasswordReady(Boolean(password)); setAppUnlocked(unlocked);
       if (activeTab?.url) {
         const preset = suggestCategory(activeTab.url);
-        if (preset) { setCategory(preset.id); setDuration(preset.duration); setUnit(preset.unit); }
+        if (preset) { setCategory(preset.id); setDuration(preset.duration); setUnit(preset.unit); setDeleteImmediately(preset.deleteImmediately ?? false); }
       }
     });
   }, []);
@@ -67,7 +67,7 @@ function Popup() {
   function selectCategory(id?: CategoryId) {
     setCategory(id);
     const preset = getCategoryPreset(id);
-    if (preset) { setDuration(preset.duration); setUnit(preset.unit); }
+    if (preset) { setDuration(preset.duration); setUnit(preset.unit); setDeleteImmediately(preset.deleteImmediately ?? false); }
   }
 
   return <main className="w-[360px] bg-[#f6f8f4] p-4 dark:bg-[#0c1420]">

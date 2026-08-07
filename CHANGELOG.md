@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.0 — 2026-08-07
+
+- Added protected websites, independent category controls, rule conflict detection, and privacy-safe backup and restore.
+
 ## 1.3.0 — 2026-08-06
 
 - Added ready-to-use default category rules, confirmed immediate cleanup of expired categorized history, and local per-domain category overrides.

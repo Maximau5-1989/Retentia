@@ -1,12 +1,12 @@
 {
   "name": "retentia",
   "private": true,
-  "version": "1.3.0",
+  "version": "1.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "test": "vitest run",
+    "build": "tsc --noEmit && vite build --configLoader runner",
+    "test": "vitest run --configLoader runner",
     "check": "pnpm run test && pnpm run build",
     "release:patch": "node scripts/release.mjs patch",
     "release:minor": "node scripts/release.mjs minor",

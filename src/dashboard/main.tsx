@@ -3,11 +3,14 @@ import { createRoot } from "react-dom/client";
 import { PasswordModal } from "../components/PasswordModal";
 import { ThemeButton } from "../components/ThemeButton";
 import { ChangePassword } from "../components/ChangePassword";
-import { deleteHistoryMatchingRule, scanHistory, scanHistoryCategories } from "../retention/engine";
+import { cleanExpiredForRule, deleteHistoryMatchingRule, scanHistory, scanHistoryCategories } from "../retention/engine";
+import { detectRuleConflicts } from "../retention/conflicts";
+import { normalizeProtectedDomain } from "../retention/protection";
 import { formatDate, shortenUrl } from "../shared/format";
 import { sessionStorage, storage } from "../shared/storage";
 import { CATEGORY_PRESETS, getCategoryPreset, suggestCategory } from "../shared/categories";
-import type { ActivityEntry, CategoryId, CategoryScanResult, RetentionRule, RuleKind, ScanResult, Settings, TimeUnit } from "../shared/types";
+import { createBackup, parseBackup } from "../shared/backup";
+import type { ActivityEntry, CategoryId, CategoryOverrides, CategoryScanResult, RetentionRule, RuleKind, ScanResult, Settings, TimeUnit } from "../shared/types";
 import "../styles.css";
 
 type View = "overview" | "rules" | "categories" | "simulator" | "activity" | "settings";
@@ -31,6 +34,9 @@ function Dashboard() {
   const [pendingRuleUrl, setPendingRuleUrl] = useState(requestedRuleUrl);
   const [categoryScan, setCategoryScan] = useState<CategoryScanResult>();
   const [scanningCategories, setScanningCategories] = useState(false);
+  const [categoryOverrides, setCategoryOverrides] = useState<CategoryOverrides>({});
+  const [protectedDomains, setProtectedDomains] = useState<string[]>([]);
+  const [protectedDraft, setProtectedDraft] = useState("");
 
   async function refresh() {
     await storage.sanitizePrivacyData();
@@ -39,7 +45,8 @@ function Dashboard() {
     setPasswordReady(Boolean(password));
     setAppUnlocked(unlocked);
     if (unlocked) {
-      setRules(await storage.getRules());
+      const [loadedRules, loadedOverrides, loadedProtected] = await Promise.all([storage.getRules(), storage.getCategoryOverrides(), storage.getProtectedDomains()]);
+      setRules(loadedRules); setCategoryOverrides(loadedOverrides); setProtectedDomains(loadedProtected);
       await chrome.runtime.sendMessage({ type: "REGISTER_DASHBOARD_TAB" });
       applyPendingRuleUrl();
     }
@@ -91,8 +98,60 @@ function Dashboard() {
     const overrides = await storage.getCategoryOverrides();
     if (category) overrides[domain] = category; else delete overrides[domain];
     await storage.setCategoryOverrides(overrides);
+    setCategoryOverrides({ ...overrides });
     setCategoryScan(await scanHistoryCategories());
     setNotice(category ? `${domain} moved to ${getCategoryPreset(category)?.label}` : `${domain} restored to automatic categorization`);
+  }
+  async function toggleCategoryRule(category: CategoryId) {
+    const preset = getCategoryPreset(category)!;
+    const existing = rules.find((rule) => rule.kind === "category" && rule.pattern === category);
+    const nextRule: RetentionRule = existing ? { ...existing, enabled: !existing.enabled } : {
+      id: crypto.randomUUID(), name: `${preset.label} default`, kind: "category", pattern: category, category,
+      duration: preset.duration, unit: preset.unit, enabled: true, priority: 40, createdAt: Date.now(),
+    };
+    await persistRules(existing ? rules.map((rule) => rule.id === existing.id ? nextRule : rule) : [nextRule, ...rules]);
+    setNotice(`${preset.label} rule ${nextRule.enabled ? "activated" : "paused"}`);
+  }
+  async function cleanCategory(category: CategoryId) {
+    const preset = getCategoryPreset(category)!;
+    if (!confirm(`Activate ${preset.label} and permanently remove history that is older than ${preset.duration} ${preset.unit}? Protected websites are always skipped.`)) return;
+    const existing = rules.find((rule) => rule.kind === "category" && rule.pattern === category);
+    const activeRule: RetentionRule = existing ? { ...existing, enabled: true } : {
+      id: crypto.randomUUID(), name: `${preset.label} default`, kind: "category", pattern: category, category,
+      duration: preset.duration, unit: preset.unit, enabled: true, priority: 40, createdAt: Date.now(),
+    };
+    await persistRules(existing ? rules.map((rule) => rule.id === existing.id ? activeRule : rule) : [activeRule, ...rules]);
+    const removed = await cleanExpiredForRule(activeRule);
+    setActivity(await storage.getActivity()); setNotice(`${preset.label} activated · ${removed} expired URL${removed === 1 ? "" : "s"} removed`);
+  }
+  async function addProtectedDomain(event: React.FormEvent) {
+    event.preventDefault();
+    const domain = normalizeProtectedDomain(protectedDraft);
+    if (!domain) { setNotice("Enter a valid website or domain"); return; }
+    if (protectedDomains.includes(domain)) { setNotice(`${domain} is already protected`); return; }
+    const next = [...protectedDomains, domain].sort();
+    await storage.setProtectedDomains(next); setProtectedDomains(next); setProtectedDraft(""); setNotice(`${domain} will never be removed`);
+  }
+  async function removeProtectedDomain(domain: string) {
+    if (!confirm(`Stop protecting ${domain}? Retention rules may remove it during a future cleanup.`)) return;
+    const next = protectedDomains.filter((item) => item !== domain);
+    await storage.setProtectedDomains(next); setProtectedDomains(next); setNotice(`${domain} removed from protection`);
+  }
+  async function exportBackup() {
+    const [backupRules, backupSettings, overrides, domains] = await Promise.all([storage.getRules(), storage.getSettings(), storage.getCategoryOverrides(), storage.getProtectedDomains()]);
+    const backup = createBackup({ appVersion: extensionVersion, rules: backupRules, settings: backupSettings, categoryOverrides: overrides, protectedDomains: domains });
+    const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a"); link.href = url; link.download = `retentia-backup-v${extensionVersion}.json`; link.click(); URL.revokeObjectURL(url);
+    setNotice("Privacy-safe backup exported");
+  }
+  async function importBackup(file?: File) {
+    if (!file) return;
+    try {
+      const backup = parseBackup(await file.text());
+      if (!confirm(`Restore ${backup.rules.length} rules, settings, category overrides, and protected websites? Current configuration will be replaced. Password, activity totals, and browser history are unchanged.`)) return;
+      await Promise.all([storage.setRules(backup.rules), storage.setSettings(backup.settings), storage.setCategoryOverrides(backup.categoryOverrides), storage.setProtectedDomains(backup.protectedDomains)]);
+      setRules(backup.rules); setSettings(backup.settings); setCategoryOverrides(backup.categoryOverrides); setProtectedDomains(backup.protectedDomains); setNotice("Backup restored successfully");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Backup restore failed"); }
   }
   async function updateSettings(next: Settings) { setSettings(next); await storage.setSettings(next); }
   async function toggleTheme() {
@@ -117,7 +176,8 @@ function Dashboard() {
   }
   async function unlockApplication() {
     await sessionStorage.unlock();
-    setRules(await storage.getRules());
+    const [loadedRules, loadedOverrides, loadedProtected] = await Promise.all([storage.getRules(), storage.getCategoryOverrides(), storage.getProtectedDomains()]);
+    setRules(loadedRules); setCategoryOverrides(loadedOverrides); setProtectedDomains(loadedProtected);
     setAppUnlocked(true);
     await chrome.runtime.sendMessage({ type: "REGISTER_DASHBOARD_TAB" });
     applyPendingRuleUrl();
@@ -134,6 +194,7 @@ function Dashboard() {
   }, [settings?.theme]);
 
   const enabledRules = rules.filter((rule) => rule.enabled).length;
+  const ruleConflicts = detectRuleConflicts(rules, categoryOverrides);
   const deletedCount = activity.filter((entry) => entry.type === "deleted").reduce((total, entry) => total + (entry.count ?? 0), 0);
 
   if (!settings) return <div className="p-8">Loading Retentia…</div>;
@@ -159,6 +220,14 @@ function Dashboard() {
         {view === "categories" && <div className="card mb-6 p-6"><h3 className="mt-0 text-lg font-extrabold">Default category rules</h3><p className="muted text-sm">Prepare all seven defaults as disabled rules, or activate them and immediately remove only history that has already exceeded each category's retention period.</p><div className="flex flex-wrap gap-3"><button className="btn-secondary" onClick={() => void prepareDefaultRules(false)}>Prepare disabled rules</button><button className="btn-danger" onClick={() => void prepareDefaultRules(true)}>Activate and clean expired history</button></div></div>}
 
         {view === "categories" && categoryScan && <div className="space-y-5">{categoryScan.buckets.map(bucket => { const preset=getCategoryPreset(bucket.category); return <section className="card overflow-hidden" key={`domains-${bucket.category ?? 'uncategorized'}`}><div className="flex items-center justify-between border-b border-[#e5eae2] p-5 dark:border-[#2b3a4b]"><div><h3 className="m-0 text-base font-extrabold">Move websites from {preset?.label ?? 'Uncategorized'}</h3><p className="muted mb-0 mt-1 text-xs">Only a domain you manually move is saved as a local override.</p></div><span className="pill">{bucket.domains.length} domains</span></div><div className="max-h-72 overflow-y-auto">{bucket.domains.map(item => <div className="flex items-center gap-3 border-t border-[#edf0ea] px-5 py-3 first:border-t-0 dark:border-[#29394a]" key={item.domain}><div className="min-w-0 flex-1"><div className="truncate text-sm font-bold">{item.domain}</div><div className="muted text-xs">{item.urls} URLs · {item.visits} visits{item.overridden ? ' · custom category' : ''}</div></div><select aria-label={`Category for ${item.domain}`} className="field !w-56" value={item.overridden ? bucket.category ?? '' : 'automatic'} onChange={event => void moveDomain(item.domain, event.target.value === 'automatic' ? undefined : event.target.value as CategoryId)}><option value="automatic">Automatic</option>{CATEGORY_PRESETS.map(option => <option value={option.id} key={option.id}>{option.label}</option>)}</select></div>)}</div></section>})}</div>}
+
+        {view === "categories" && <section className="mt-6"><h3 className="mb-4 text-lg font-extrabold">Manage categories separately</h3><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{CATEGORY_PRESETS.map(preset => { const categoryRule=rules.find(rule => rule.kind === 'category' && rule.pattern === preset.id); return <article className="card p-5" key={`control-${preset.id}`}><div className="flex items-start justify-between gap-3"><div><h4 className="m-0 font-extrabold">{preset.label}</h4><p className="muted mb-0 mt-1 text-xs">Keep for {categoryRule?.duration ?? preset.duration} {categoryRule?.unit ?? preset.unit}</p></div><button aria-label={`Toggle ${preset.label}`} className={`toggle ${categoryRule?.enabled ? 'on' : ''}`} onClick={() => void toggleCategoryRule(preset.id)}/></div><button className="btn-danger mt-4 w-full" onClick={() => void cleanCategory(preset.id)}>Activate & clean expired</button></article>})}</div></section>}
+
+        {view === "rules" && ruleConflicts.length > 0 && <section className="card mb-6 border-amber-300 bg-amber-50 p-6 dark:border-amber-700 dark:bg-amber-950"><h3 className="mt-0 text-lg font-extrabold">Rule conflicts detected</h3><p className="muted text-sm">Retentia always uses the highest priority. If priorities match, the oldest rule wins.</p><div className="space-y-3">{ruleConflicts.map(conflict => <div className="rounded-xl border border-amber-200 bg-white/70 p-4 text-sm dark:border-amber-800 dark:bg-black/20" key={`${conflict.first.id}-${conflict.second.id}`}><strong>{conflict.first.name}</strong> overlaps <strong>{conflict.second.name}</strong><p className="muted mb-0 mt-1 text-xs">{conflict.reason} Winner: {conflict.winner.name}.</p></div>)}</div></section>}
+
+        {view === "settings" && <section className="card mb-6 max-w-3xl p-7"><h3 className="mt-0 text-lg font-extrabold">Protected websites</h3><p className="muted text-sm">Protected domains and all of their subdomains are skipped by previews, manual deletion, category cleanup, and automatic cleanup.</p><form className="flex gap-3" onSubmit={addProtectedDomain}><input className="field flex-1" value={protectedDraft} onChange={event => setProtectedDraft(event.target.value)} placeholder="bank.example or https://portal.example"/><button className="btn-primary" type="submit">Protect website</button></form><div className="mt-5 space-y-2">{protectedDomains.length ? protectedDomains.map(domain => <div className="flex items-center justify-between rounded-xl border border-[#e5eae2] px-4 py-3 dark:border-[#2b3a4b]" key={domain}><span className="font-bold">{domain}</span><button className="btn-danger" onClick={() => void removeProtectedDomain(domain)}>Remove</button></div>) : <p className="muted text-sm">No websites are protected yet.</p>}</div></section>}
+
+        {view === "settings" && <section className="card mb-6 max-w-3xl p-7"><h3 className="mt-0 text-lg font-extrabold">Backup and restore</h3><p className="muted text-sm">Export rules, settings, category overrides, and protected websites. Passwords, activity totals, scan results, and browser history are never included.</p><div className="flex flex-wrap gap-3"><button className="btn-secondary" onClick={() => void exportBackup()}>Export backup</button><label className="btn-primary cursor-pointer">Restore backup<input className="hidden" type="file" accept="application/json,.json" onChange={event => { void importBackup(event.target.files?.[0]); event.target.value=''; }}/></label></div></section>}
 
         {view === "rules" && <div className="grid items-start gap-6 xl:grid-cols-[.9fr_1.35fr]">
           <form className="card p-6" onSubmit={saveRule}><h3 className="mt-0 text-lg font-extrabold">{editingId ? 'Edit rule' : 'New rule'}</h3><div className="space-y-4"><label><span className="label">Rule name</span><input required className="field" value={draft.name} onChange={e => setDraft({...draft,name:e.target.value})} placeholder="Sensitive searches" /></label><label><span className="label">Category preset</span><select className="field" value={draft.category ?? ""} onChange={e => applyCategory((e.target.value || undefined) as CategoryId | undefined)}><option value="">Uncategorized</option>{CATEGORY_PRESETS.map(preset => <option value={preset.id} key={preset.id}>{preset.label} · {preset.duration} {preset.unit}</option>)}</select>{draft.category && <span className="muted mt-1 block text-xs">{getCategoryPreset(draft.category)?.description} You can still customize the retention period.</span>}</label><label><span className="label">Match type</span><select className="field" value={draft.kind} onChange={e => setDraft({...draft,kind:e.target.value as RuleKind})}><option value="domain">Domain</option><option value="exact">Exact URL</option><option value="wildcard">Wildcard</option><option value="regex">Regular expression</option></select></label><label><span className="label">Pattern</span><input required className="field" value={draft.pattern} onChange={e => setDraft({...draft,pattern:e.target.value})} onBlur={suggestDraftCategory} placeholder={draft.kind === 'domain' ? 'example.com' : 'https://example.com/*'} /></label><div className="grid grid-cols-2 gap-3"><label><span className="label">Keep for</span><input required min="1" type="number" className="field" value={draft.duration} onChange={e => setDraft({...draft,duration:Number(e.target.value)})} /></label><label><span className="label">Unit</span><select className="field" value={draft.unit} onChange={e => setDraft({...draft,unit:e.target.value as TimeUnit})}><option value="minutes">Minutes</option><option value="hours">Hours</option><option value="days">Days</option></select></label></div><label><span className="label">Priority (higher wins)</span><input type="number" className="field" value={draft.priority} onChange={e => setDraft({...draft,priority:Number(e.target.value)})} /></label>{!editingId && <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#f0cfbd] bg-[#fff7f1] p-4 dark:border-[#694331] dark:bg-[#2a201b]"><input className="mt-1 h-4 w-4 accent-[#a94f1c]" type="checkbox" checked={deleteExisting} onChange={e=>setDeleteExisting(e.target.checked)}/><span><strong className="block text-sm">Delete existing matching history now</strong><span className="muted mt-1 block text-xs">Permanently removes every existing URL matched by this rule immediately after creation. You will be asked to confirm.</span></span></label>}<div className="flex gap-2"><button className="btn-primary flex-1" type="submit">Save rule</button>{editingId && <button type="button" className="btn-secondary" onClick={() => {setEditingId(undefined);setDraft(EMPTY_RULE)}}>Cancel</button>}</div></div></form>

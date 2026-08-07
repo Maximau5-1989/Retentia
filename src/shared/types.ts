@@ -78,6 +78,18 @@ export interface CategoryScanDomain {
 }
 
 export type CategoryOverrides = Record<string, CategoryId>;
+export type ProtectedDomains = string[];
+
+export interface RetentiaBackup {
+  format: "retentia-backup";
+  schemaVersion: 1;
+  exportedAt: string;
+  appVersion: string;
+  rules: RetentionRule[];
+  settings: Settings;
+  categoryOverrides: CategoryOverrides;
+  protectedDomains: ProtectedDomains;
+}
 
 export interface CategoryScanResult {
   scanned: number;

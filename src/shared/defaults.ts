@@ -17,6 +17,7 @@ export const STORAGE_KEYS = {
   password: "password",
   authThrottle: "authThrottle",
   categoryOverrides: "categoryOverrides",
+  protectedDomains: "protectedDomains",
 } as const;
 
 export const SESSION_KEYS = {

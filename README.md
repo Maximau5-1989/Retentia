@@ -23,11 +23,13 @@ Retentia is a privacy-first Chrome extension that gives selected browser history
 - The optional **18+** category uses a transparent local domain list, is disabled by default, and suggests immediate history removal.
 - The local classification engine combines known domains, subdomains, URL structure, and Chrome's stored page title. It never opens websites or reads page content.
 - Only high-confidence classifications can match an automatic category rule. Medium-confidence results remain uncategorized and are shown as possible matches for manual review.
+- Possible category matches appear in dedicated review panels where a domain can be confirmed before category rules may use it.
 - Rules automatically receives one disabled default rule for every built-in category without duplicating existing category rules.
 - Rules can remove matching URLs immediately after a visit or after a configurable retention period.
 - Existing rules can contain additional exact history URLs while retaining one shared name, timing, priority, and enabled state.
 - The Rules view reports known overlaps and clearly identifies the winning rule.
 - Configuration backups contain rules, settings, category overrides, and protected domains only. Passwords, activity totals, scan results, and browser history are excluded.
+- An explicit, disabled-by-default Testing mode can temporarily bypass password prompts without removing the password. Testing mode is never exported in backups and turning it off immediately restores the lock.
 
 ## Development
 

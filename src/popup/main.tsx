@@ -23,7 +23,7 @@ function Popup() {
   useEffect(() => {
     void Promise.all([chrome.tabs.query({ active: true, currentWindow: true }), storage.getSettings(), storage.getPassword(), sessionStorage.isUnlocked()]).then(([tabs, value, password, unlocked]) => {
       const activeTab = tabs[0];
-      setTab(activeTab); setSettings(value); setPasswordReady(Boolean(password)); setAppUnlocked(unlocked);
+      setTab(activeTab); setSettings(value); setPasswordReady(Boolean(password)); setAppUnlocked(Boolean(value.testingBypassPassword) || unlocked);
       if (activeTab?.url) {
         const preset = suggestCategory(activeTab.url, activeTab.title);
         if (preset) { setCategory(preset.id); setDuration(preset.duration); setUnit(preset.unit); setDeleteImmediately(preset.deleteImmediately ?? false); }

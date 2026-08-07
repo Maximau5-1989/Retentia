@@ -24,6 +24,7 @@ export interface Settings {
   maxLogEntries: number;
   onboardingComplete: boolean;
   theme: "light" | "dark";
+  testingBypassPassword?: boolean;
 }
 
 export interface PasswordRecord {

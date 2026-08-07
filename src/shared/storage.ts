@@ -36,7 +36,7 @@ export const storage = {
   async resetProtectedData(): Promise<void> {
     const settings = await this.getSettings();
     await chrome.storage.local.remove([STORAGE_KEYS.password, STORAGE_KEYS.rules, STORAGE_KEYS.activity, STORAGE_KEYS.lastScan, STORAGE_KEYS.authThrottle, STORAGE_KEYS.categoryOverrides, STORAGE_KEYS.protectedDomains, STORAGE_KEYS.defaultCategoryRulesVersion]);
-    await this.setSettings({ ...settings, onboardingComplete: false });
+    await this.setSettings({ ...settings, onboardingComplete: false, testingBypassPassword: false });
   },
   async sanitizePrivacyData(): Promise<void> {
     const rawActivity = await getLocal<Array<ActivityEntry & { url?: string; ruleId?: string }>>(STORAGE_KEYS.activity, []);

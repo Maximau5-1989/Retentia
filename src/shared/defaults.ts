@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maxLogEntries: 250,
   onboardingComplete: false,
   theme: "light",
+  testingBypassPassword: false,
 };
 
 export const STORAGE_KEYS = {

@@ -13,6 +13,19 @@ describe("Retentia backups", () => {
     expect(backup).not.toHaveProperty("history");
   });
 
+  it("never exports or restores an active password bypass", () => {
+    const testingBackup = createBackup({
+      appVersion: backup.appVersion,
+      rules: [],
+      settings: { ...backup.settings, testingBypassPassword: true },
+      categoryOverrides: {},
+      protectedDomains: [],
+    });
+    expect(testingBackup.settings.testingBypassPassword).toBe(false);
+    const tampered = { ...testingBackup, settings: { ...testingBackup.settings, testingBypassPassword: true } };
+    expect(parseBackup(JSON.stringify(tampered)).settings.testingBypassPassword).toBe(false);
+  });
+
   it("rejects unsupported files", () => {
     expect(() => parseBackup('{"format":"other"}')).toThrow("supported Retentia backup");
   });

@@ -5,7 +5,13 @@ const TIME_UNITS = new Set<TimeUnit>(["minutes", "hours", "days"]);
 const CATEGORY_IDS = new Set<CategoryId>(["social", "shopping", "news", "streaming", "search", "travel", "entertainment", "adult"]);
 
 export function createBackup(data: Omit<RetentiaBackup, "format" | "schemaVersion" | "exportedAt">): RetentiaBackup {
-  return { format: "retentia-backup", schemaVersion: 1, exportedAt: new Date().toISOString(), ...data };
+  return {
+    format: "retentia-backup",
+    schemaVersion: 1,
+    exportedAt: new Date().toISOString(),
+    ...data,
+    settings: { ...data.settings, testingBypassPassword: false },
+  };
 }
 
 export function parseBackup(input: string): RetentiaBackup {
@@ -16,7 +22,7 @@ export function parseBackup(input: string): RetentiaBackup {
   if (!isOverrides(value.categoryOverrides)) throw new Error("The backup contains invalid category overrides.");
   if (!Array.isArray(value.protectedDomains) || !value.protectedDomains.every((domain) => typeof domain === "string")) throw new Error("The backup contains invalid protected websites.");
   if (typeof value.exportedAt !== "string" || typeof value.appVersion !== "string") throw new Error("The backup metadata is incomplete.");
-  return value as unknown as RetentiaBackup;
+  return { ...value, settings: { ...value.settings, testingBypassPassword: false } } as unknown as RetentiaBackup;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -38,7 +44,8 @@ function isSettings(value: unknown): value is Settings {
   if (!isRecord(value)) return false;
   return typeof value.enabled === "boolean" && typeof value.scanIntervalMinutes === "number"
     && typeof value.historyWindowDays === "number" && typeof value.maxLogEntries === "number"
-    && typeof value.onboardingComplete === "boolean" && (value.theme === "light" || value.theme === "dark");
+    && typeof value.onboardingComplete === "boolean" && (value.theme === "light" || value.theme === "dark")
+    && (value.testingBypassPassword === undefined || typeof value.testingBypassPassword === "boolean");
 }
 
 function isOverrides(value: unknown): value is CategoryOverrides {

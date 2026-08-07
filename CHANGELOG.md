@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.2 — 2026-08-07
+
+- Added dedicated review panels for possible category matches and a disabled-by-default Testing mode that temporarily bypasses password prompts without removing password protection.
+
 ## 1.6.1 — 2026-08-07
 
 - Added a nested Retentia menu to Chrome History with separate actions for creating a new rule or attaching the selected URL as an exact match to an existing rule.

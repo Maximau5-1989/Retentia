@@ -1,7 +1,7 @@
 import { CATEGORY_PRESETS } from "./categories";
 import type { RetentionRule } from "./types";
 
-export const DEFAULT_CATEGORY_RULES_VERSION = 1;
+export const DEFAULT_CATEGORY_RULES_VERSION = 2;
 
 interface DefaultRuleOptions {
   enabled?: boolean;
@@ -16,8 +16,15 @@ export function addMissingDefaultCategoryRules(
   const enabled = options.enabled ?? false;
   const now = options.now ?? Date.now();
   const createId = options.createId ?? (() => crypto.randomUUID());
+  const normalizedRules = existingRules.map((rule) => {
+    if (rule.kind !== "category") return rule;
+    const preset = CATEGORY_PRESETS.find((item) => item.id === rule.pattern);
+    return preset && rule.name === `${preset.label} default`
+      ? { ...rule, name: preset.label }
+      : rule;
+  });
   const existingCategories = new Set(
-    existingRules
+    normalizedRules
       .filter((rule) => rule.kind === "category")
       .map((rule) => rule.pattern),
   );
@@ -25,7 +32,7 @@ export function addMissingDefaultCategoryRules(
     .filter((preset) => !existingCategories.has(preset.id))
     .map((preset, index): RetentionRule => ({
       id: createId(),
-      name: `${preset.label} default`,
+      name: preset.label,
       kind: "category",
       pattern: preset.id,
       category: preset.id,
@@ -36,5 +43,5 @@ export function addMissingDefaultCategoryRules(
       createdAt: now + index,
     }));
 
-  return { rules: [...existingRules, ...additions], additions };
+  return { rules: [...normalizedRules, ...additions], additions };
 }

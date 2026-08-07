@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.3 — 2026-08-07
+
+- Removed the word default from built-in category rule names and migrated existing generated names.
+
 ## 1.4.2 — 2026-08-07
 
 - Added one disabled default rule for every built-in category in Rules while preserving existing user rules.

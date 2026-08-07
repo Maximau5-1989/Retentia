@@ -23,6 +23,7 @@ describe("default category rules", () => {
     expect(result.additions).toHaveLength(CATEGORY_PRESETS.length);
     expect(result.additions.every((rule) => rule.kind === "category" && !rule.enabled)).toBe(true);
     expect(result.additions.map((rule) => rule.pattern)).toEqual(CATEGORY_PRESETS.map((preset) => preset.id));
+    expect(result.additions.map((rule) => rule.name)).toEqual(CATEGORY_PRESETS.map((preset) => preset.label));
   });
 
   it("preserves existing rules and does not duplicate an existing category", () => {
@@ -44,5 +45,25 @@ describe("default category rules", () => {
   it("can prepare active defaults for confirmed immediate cleanup", () => {
     const result = addMissingDefaultCategoryRules([], { enabled: true });
     expect(result.additions.every((rule) => rule.enabled)).toBe(true);
+  });
+
+  it("removes the legacy default suffix without renaming custom category rules", () => {
+    const legacyRule: RetentionRule = {
+      ...customRule,
+      id: "legacy-social",
+      name: "Social media default",
+      kind: "category",
+      pattern: "social",
+      category: "social",
+    };
+    const customCategoryRule: RetentionRule = {
+      ...legacyRule,
+      id: "custom-social",
+      name: "My social rule",
+    };
+    const result = addMissingDefaultCategoryRules([legacyRule, customCategoryRule]);
+
+    expect(result.rules[0].name).toBe("Social media");
+    expect(result.rules[1].name).toBe("My social rule");
   });
 });

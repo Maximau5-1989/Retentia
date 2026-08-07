@@ -123,7 +123,7 @@ function Dashboard() {
     const preset = getCategoryPreset(category)!;
     const existing = rules.find((rule) => rule.kind === "category" && rule.pattern === category);
     const nextRule: RetentionRule = existing ? { ...existing, enabled: !existing.enabled } : {
-      id: crypto.randomUUID(), name: `${preset.label} default`, kind: "category", pattern: category, category,
+      id: crypto.randomUUID(), name: preset.label, kind: "category", pattern: category, category,
       duration: preset.duration, unit: preset.unit, enabled: true, priority: 40, createdAt: Date.now(),
     };
     await persistRules(existing ? rules.map((rule) => rule.id === existing.id ? nextRule : rule) : [nextRule, ...rules]);
@@ -134,7 +134,7 @@ function Dashboard() {
     if (!confirm(`Activate ${preset.label} and permanently remove history that is older than ${preset.duration} ${preset.unit}? Protected websites are always skipped.`)) return;
     const existing = rules.find((rule) => rule.kind === "category" && rule.pattern === category);
     const activeRule: RetentionRule = existing ? { ...existing, enabled: true } : {
-      id: crypto.randomUUID(), name: `${preset.label} default`, kind: "category", pattern: category, category,
+      id: crypto.randomUUID(), name: preset.label, kind: "category", pattern: category, category,
       duration: preset.duration, unit: preset.unit, enabled: true, priority: 40, createdAt: Date.now(),
     };
     await persistRules(existing ? rules.map((rule) => rule.id === existing.id ? activeRule : rule) : [activeRule, ...rules]);

@@ -1,4 +1,4 @@
-# Retentia v1.0
+# Retentia
 
 Retentia is a privacy-first Chrome extension that gives selected browser history a configurable expiration date. All processing happens locally.
 
@@ -12,7 +12,7 @@ Retentia is a privacy-first Chrome extension that gives selected browser history
 - Local activity log and dashboard
 - Quick rule creation from the popup
 - Optional immediate deletion of existing history matched by a newly created rule
-- Right-click **Create Retentia rule** action for URLs on Chrome's history page
+- Nested **Retentia** right-click menu on Chrome's history page with **Create new rule** and **Add to existing rule** actions
 - Light and dark themes
 - Password-protected Retentia interface
 
@@ -25,6 +25,7 @@ Retentia is a privacy-first Chrome extension that gives selected browser history
 - Only high-confidence classifications can match an automatic category rule. Medium-confidence results remain uncategorized and are shown as possible matches for manual review.
 - Rules automatically receives one disabled default rule for every built-in category without duplicating existing category rules.
 - Rules can remove matching URLs immediately after a visit or after a configurable retention period.
+- Existing rules can contain additional exact history URLs while retaining one shared name, timing, priority, and enabled state.
 - The Rules view reports known overlaps and clearly identifies the winning rule.
 - Configuration backups contain rules, settings, category overrides, and protected domains only. Passwords, activity totals, scan results, and browser history are excluded.
 
@@ -62,7 +63,7 @@ Retentia uses the Chrome History API and local extension storage. It has no host
 
 Category classification runs entirely in memory. URL paths, queries, and Chrome's stored page titles can contribute to a confidence score, but classification details are discarded when the dashboard is closed or refreshed and are never written to the activity log.
 
-The activity log stores removal counts and timestamps only. It does not store deleted URLs or domains. Scan candidate URLs exist temporarily in memory while a simulation is visible but are stripped before the scan summary is saved. Retentia creates no separate history-log file on the filesystem. Retention rules necessarily retain the user-entered match pattern so the background engine can apply them.
+The activity log stores removal counts and timestamps only. It does not store deleted URLs or domains. Scan candidate URLs exist temporarily in memory while a simulation is visible but are stripped before the scan summary is saved. Retentia creates no separate history-log file on the filesystem. Retention rules necessarily retain their user-entered match pattern and any exact URLs deliberately attached to them so the background engine can apply those rules.
 
 The Retentia password is never stored directly. Retentia stores a salted PBKDF2-SHA-256 hash locally. A successful login unlocks the pinned popup and dashboard for the lifetime of the registered dashboard tab. Closing that tab clears the unlock session, so the next opening from the pinned extension icon requires the password again. Rules no longer require a second password prompt after Retentia is unlocked.
 

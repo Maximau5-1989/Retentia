@@ -14,6 +14,7 @@ export function matchesRule(candidate: RuleMatchInput, rule: RetentionRule, cate
   const title = typeof candidate === "string" ? "" : candidate.title ?? "";
   if (!rule.enabled || !url) return false;
   try {
+    if (rule.additionalUrls?.includes(url)) return true;
     switch (rule.kind) {
       case "exact":
         return url === rule.pattern;

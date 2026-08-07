@@ -11,6 +11,7 @@ export interface RetentionRule {
   unit: TimeUnit;
   enabled: boolean;
   deleteImmediately?: boolean;
+  additionalUrls?: string[];
   priority: number;
   category?: CategoryId;
   createdAt: number;

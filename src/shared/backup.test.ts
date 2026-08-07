@@ -50,4 +50,27 @@ describe("Retentia backups", () => {
     });
     expect(parseBackup(JSON.stringify(adultBackup)).categoryOverrides).toEqual({ "private.example": "adult" });
   });
+
+  it("preserves additional exact URLs attached to existing rules", () => {
+    const ruleWithAdditionalUrl: RetentionRule = {
+      id: "grouped",
+      name: "Grouped rule",
+      kind: "domain",
+      pattern: "example.com",
+      additionalUrls: ["https://another.example/private"],
+      duration: 7,
+      unit: "days",
+      enabled: true,
+      priority: 50,
+      createdAt: 1,
+    };
+    const groupedBackup = createBackup({
+      appVersion: backup.appVersion,
+      rules: [ruleWithAdditionalUrl],
+      settings: backup.settings,
+      categoryOverrides: backup.categoryOverrides,
+      protectedDomains: backup.protectedDomains,
+    });
+    expect(parseBackup(JSON.stringify(groupedBackup)).rules[0].additionalUrls).toEqual(["https://another.example/private"]);
+  });
 });

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.1 — 2026-08-07
+
+- Added a nested Retentia menu to Chrome History with separate actions for creating a new rule or attaching the selected URL as an exact match to an existing rule.
+
 ## 1.6.0 — 2026-08-07
 
 - Added a privacy-first local classification engine that combines domains, URL structure, and stored page titles, exposes uncertain matches for review, and keeps every category visible in scanner results.

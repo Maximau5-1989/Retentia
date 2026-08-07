@@ -41,7 +41,8 @@ async function loadRulesWithDefaults(): Promise<RetentionRule[]> {
 function Dashboard() {
   const extensionVersion = chrome.runtime.getManifest().version;
   const requestedRuleUrl = new URLSearchParams(window.location.search).get("createRule") || "";
-  const [view, setView] = useState<View>(requestedRuleUrl ? "rules" : "overview");
+  const requestedAddToRuleUrl = new URLSearchParams(window.location.search).get("addToRule") || "";
+  const [view, setView] = useState<View>(requestedRuleUrl || requestedAddToRuleUrl ? "rules" : "overview");
   const [rules, setRules] = useState<RetentionRule[]>([]);
   const [settings, setSettings] = useState<Settings>();
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
@@ -54,6 +55,7 @@ function Dashboard() {
   const [appUnlocked, setAppUnlocked] = useState<boolean | null>(null);
   const [deleteExisting, setDeleteExisting] = useState(false);
   const [pendingRuleUrl, setPendingRuleUrl] = useState(requestedRuleUrl);
+  const [pendingAddToRuleUrl, setPendingAddToRuleUrl] = useState(requestedAddToRuleUrl);
   const [categoryScan, setCategoryScan] = useState<CategoryScanResult>();
   const [scanningCategories, setScanningCategories] = useState(false);
   const [categoryOverrides, setCategoryOverrides] = useState<CategoryOverrides>({});
@@ -73,9 +75,28 @@ function Dashboard() {
       applyPendingRuleUrl();
     }
   }
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => {
+    if (requestedAddToRuleUrl) window.history.replaceState({}, "", "dashboard.html");
+    void refresh();
+  }, []);
 
   async function persistRules(next: RetentionRule[]) { setRules(next); await storage.setRules(next); }
+  async function addPendingUrlToExistingRule(ruleId: string) {
+    if (!pendingAddToRuleUrl) return;
+    try {
+      const parsed = new URL(pendingAddToRuleUrl);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("Unsupported history URL");
+      const selectedRule = rules.find((rule) => rule.id === ruleId);
+      if (!selectedRule) throw new Error("The selected rule no longer exists");
+      const additionalUrls = [...new Set([...(selectedRule.additionalUrls ?? []), pendingAddToRuleUrl])];
+      const alreadyIncluded = additionalUrls.length === (selectedRule.additionalUrls?.length ?? 0);
+      await persistRules(rules.map((rule) => rule.id === ruleId ? { ...rule, additionalUrls } : rule));
+      setPendingAddToRuleUrl("");
+      setNotice(alreadyIncluded ? `This URL is already part of ${selectedRule.name}` : `History URL added to ${selectedRule.name}`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Chrome did not provide a valid history URL");
+    }
+  }
   function applyCategory(category?: CategoryId) {
     const preset = getCategoryPreset(category);
     setDraft(current => ({ ...current, category, ...(current.kind === "category" && category ? { pattern: category } : {}), ...(preset ? { duration: preset.duration, unit: preset.unit, deleteImmediately: preset.deleteImmediately ?? false } : {}) }));
@@ -248,6 +269,8 @@ function Dashboard() {
         {view === "categories" && categoryScan && <div className="space-y-5">{categoryScan.buckets.filter(bucket => bucket.domains.length > 0).map(bucket => { const preset=getCategoryPreset(bucket.category); return <section className="card overflow-hidden" key={`domains-${bucket.category ?? 'uncategorized'}`}><div className="flex items-center justify-between border-b border-[#e5eae2] p-5 dark:border-[#2b3a4b]"><div><h3 className="m-0 text-base font-extrabold">Move websites from {preset?.label ?? 'Uncategorized'}</h3><p className="muted mb-0 mt-1 text-xs">Only a domain you manually move is saved as a local override. Possible matches are never deleted automatically.</p></div><span className="pill">{bucket.domains.length} domains</span></div><div className="max-h-72 overflow-y-auto">{bucket.domains.map(item => <div className="flex items-center gap-3 border-t border-[#edf0ea] px-5 py-3 first:border-t-0 dark:border-[#29394a]" key={`${item.domain}-${item.suggestedCategory ?? bucket.category ?? 'none'}`}><div className="min-w-0 flex-1"><div className="truncate text-sm font-bold">{item.domain}</div><div className="muted text-xs">{item.urls} URLs · {item.visits} visits{item.overridden ? ' · custom category' : ''}{item.suggestedCategory ? ` · Possible ${getCategoryPreset(item.suggestedCategory)?.label}` : ''}</div></div><select aria-label={`Category for ${item.domain}`} className="field !w-56" value={item.overridden ? bucket.category ?? '' : 'automatic'} onChange={event => void moveDomain(item.domain, event.target.value === 'automatic' ? undefined : event.target.value as CategoryId)}><option value="automatic">Automatic</option>{CATEGORY_PRESETS.map(option => <option value={option.id} key={option.id}>{option.label}</option>)}</select></div>)}</div></section>})}</div>}
 
         {view === "categories" && <section className="mt-6"><h3 className="mb-4 text-lg font-extrabold">Manage categories separately</h3><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{CATEGORY_PRESETS.map(preset => { const categoryRule=rules.find(rule => rule.kind === 'category' && rule.pattern === preset.id); const immediate=categoryRule?.deleteImmediately ?? preset.deleteImmediately; return <article className="card p-5" key={`control-${preset.id}`}><div className="flex items-start justify-between gap-3"><div><h4 className="m-0 font-extrabold">{preset.label}</h4><p className="muted mb-0 mt-1 text-xs">{immediate ? 'Remove immediately after visit' : `Keep for ${categoryRule?.duration ?? preset.duration} ${categoryRule?.unit ?? preset.unit}`}</p></div><button aria-label={`Toggle ${preset.label}`} className={`toggle ${categoryRule?.enabled ? 'on' : ''}`} onClick={() => void toggleCategoryRule(preset.id)}/></div><button className="btn-danger mt-4 w-full" onClick={() => void cleanCategory(preset.id)}>{immediate ? 'Activate & clean matching' : 'Activate & clean expired'}</button></article>})}</div></section>}
+
+        {view === "rules" && pendingAddToRuleUrl && <section className="card mb-6 border-[#b9d9aa] p-6"><div className="flex flex-wrap items-start justify-between gap-4"><div><h3 className="m-0 text-lg font-extrabold">Add history URL to an existing rule</h3><p className="muted mb-0 mt-1 text-sm">Choose a rule below. Retentia stores the selected history URL locally as an additional exact match and applies that rule's existing timing and enabled state.</p></div><button className="btn-secondary" onClick={() => setPendingAddToRuleUrl("")}>Cancel</button></div><div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{rules.map(rule => <button className="rounded-xl border border-[#dce7d6] bg-[#f7faf5] p-4 text-left hover:border-[#82c950] dark:border-[#334658] dark:bg-[#152332]" key={`add-to-${rule.id}`} onClick={() => void addPendingUrlToExistingRule(rule.id)}><strong className="block truncate">{rule.name}</strong><span className="muted mt-1 block text-xs">{rule.enabled ? 'Enabled' : 'Disabled'} · {rule.deleteImmediately ? 'Immediate deletion' : `Keep for ${rule.duration} ${rule.unit}`}</span></button>)}</div></section>}
 
         {view === "rules" && ruleConflicts.length > 0 && <section className="card mb-6 border-amber-300 bg-amber-50 p-6 dark:border-amber-700 dark:bg-amber-950"><h3 className="mt-0 text-lg font-extrabold">Rule conflicts detected</h3><p className="muted text-sm">Retentia always uses the highest priority. If priorities match, the oldest rule wins.</p><div className="space-y-3">{ruleConflicts.map(conflict => <div className="rounded-xl border border-amber-200 bg-white/70 p-4 text-sm dark:border-amber-800 dark:bg-black/20" key={`${conflict.first.id}-${conflict.second.id}`}><strong>{conflict.first.name}</strong> overlaps <strong>{conflict.second.name}</strong><p className="muted mb-0 mt-1 text-xs">{conflict.reason} Winner: {conflict.winner.name}.</p></div>)}</div></section>}
 

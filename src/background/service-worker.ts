@@ -2,13 +2,29 @@ import { deleteVisitedUrlImmediately, scanHistory } from "../retention/engine";
 import { sessionStorage, storage } from "../shared/storage";
 
 const ALARM_NAME = "retentia-scan";
-const HISTORY_CONTEXT_MENU_ID = "retentia-create-rule-from-history";
+const HISTORY_CONTEXT_MENU_ID = "retentia-history-menu";
+const CREATE_RULE_CONTEXT_MENU_ID = "retentia-create-rule-from-history";
+const ADD_TO_RULE_CONTEXT_MENU_ID = "retentia-add-to-rule-from-history";
 
 async function configureContextMenu(): Promise<void> {
   await chrome.contextMenus.removeAll();
   chrome.contextMenus.create({
     id: HISTORY_CONTEXT_MENU_ID,
-    title: "Create Retentia rule",
+    title: "Retentia",
+    contexts: ["link"],
+    documentUrlPatterns: ["chrome://history/*"],
+  });
+  chrome.contextMenus.create({
+    id: CREATE_RULE_CONTEXT_MENU_ID,
+    parentId: HISTORY_CONTEXT_MENU_ID,
+    title: "Create new rule",
+    contexts: ["link"],
+    documentUrlPatterns: ["chrome://history/*"],
+  });
+  chrome.contextMenus.create({
+    id: ADD_TO_RULE_CONTEXT_MENU_ID,
+    parentId: HISTORY_CONTEXT_MENU_ID,
+    title: "Add to existing rule",
     contexts: ["link"],
     documentUrlPatterns: ["chrome://history/*"],
   });
@@ -61,8 +77,14 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 chrome.runtime.onStartup.addListener(configureAlarm);
 chrome.contextMenus.onClicked.addListener((info) => {
-  if (info.menuItemId !== HISTORY_CONTEXT_MENU_ID || !info.linkUrl) return;
-  const target = chrome.runtime.getURL(`dashboard.html?createRule=${encodeURIComponent(info.linkUrl)}`);
+  if (!info.linkUrl) return;
+  const action = info.menuItemId === CREATE_RULE_CONTEXT_MENU_ID
+    ? "createRule"
+    : info.menuItemId === ADD_TO_RULE_CONTEXT_MENU_ID
+      ? "addToRule"
+      : undefined;
+  if (!action) return;
+  const target = chrome.runtime.getURL(`dashboard.html?${action}=${encodeURIComponent(info.linkUrl)}`);
   void chrome.tabs.create({ url: target });
 });
 chrome.tabs.onRemoved.addListener(async (tabId) => {

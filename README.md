@@ -61,7 +61,10 @@ The release command synchronizes `package.json` and `public/manifest.json`, upda
 
 ## Privacy
 
+Public privacy policy: https://maximau5.github.io/Retentia/privacy/
+
 Retentia uses the Chrome History API and local extension storage. It has no host permissions, analytics, remote services, or account system.
+The public privacy policy is available at https://maximau5.github.io/Retentia/privacy/.
 
 Category classification runs entirely in memory. URL paths, queries, and Chrome's stored page titles can contribute to a confidence score, but classification details are discarded when the dashboard is closed or refreshed and are never written to the activity log.
 

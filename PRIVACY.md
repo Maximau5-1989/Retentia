@@ -1,8 +1,13 @@
 # Retentia Privacy Policy
 
-**Effective date:** August 6, 2026
+**Effective date:** August 8, 2026
 
 Retentia is designed to process browser history locally on the user's device.
+
+## Contact
+
+Publisher: Max  
+Email: wehaveamalfunction@gmail.com
 
 ## Data accessed
 
@@ -16,7 +21,7 @@ Retentia does not create a separate browser-history log file on the filesystem. 
 
 ## Data transmission and sharing
 
-Retentia does not transmit, sell, share, or remotely process browser history or other personal data. Version 1.0 has no server, analytics, advertising, account system, or network permissions.
+Retentia does not transmit, sell, share, or remotely process browser history or other personal data. Retentia has no server, analytics, advertising, account system, or network permissions.
 
 ## Data deletion
 

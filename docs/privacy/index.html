@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Retentia Privacy Policy</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f6f8fb;
+        --panel: #ffffff;
+        --text: #162235;
+        --muted: #5a6778;
+        --accent: #1d6f42;
+        --border: #d9e1ea;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0f1724;
+          --panel: #162235;
+          --text: #e8eef5;
+          --muted: #b2c0cf;
+          --accent: #7fd27e;
+          --border: #27364a;
+        }
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        line-height: 1.65;
+        background: linear-gradient(180deg, var(--bg), var(--bg));
+        color: var(--text);
+      }
+      main {
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 48px 20px 72px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 32px;
+        box-shadow: 0 16px 36px rgba(14, 24, 38, 0.08);
+      }
+      h1, h2 {
+        line-height: 1.2;
+      }
+      h1 {
+        margin-top: 0;
+        margin-bottom: 8px;
+        font-size: clamp(2rem, 4vw, 3rem);
+      }
+      h2 {
+        margin-top: 2rem;
+        margin-bottom: 0.75rem;
+        font-size: 1.2rem;
+      }
+      p, li { color: var(--text); }
+      .muted { color: var(--muted); }
+      a { color: var(--accent); }
+      ul { padding-left: 1.2rem; }
+      .meta {
+        display: grid;
+        gap: 6px;
+        margin: 16px 0 0;
+        padding: 16px 18px;
+        border-radius: 16px;
+        background: rgba(127, 210, 126, 0.12);
+        border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+      }
+      .footer {
+        margin-top: 2rem;
+        font-size: 0.95rem;
+      }
+      @media (max-width: 640px) {
+        main { padding: 20px 12px 40px; }
+        .card { padding: 22px; border-radius: 16px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="card">
+        <h1>Retentia Privacy Policy</h1>
+        <p class="muted"><strong>Effective date:</strong> August 8, 2026</p>
+        <p>Retentia is a privacy-first Chrome extension that gives selected browser history a configurable expiration date. All processing happens locally on the user's device.</p>
+
+        <div class="meta">
+          <strong>Contact</strong>
+          <span>Max</span>
+          <span><a href="mailto:wehaveamalfunction@gmail.com">wehaveamalfunction@gmail.com</a></span>
+        </div>
+
+        <h2>1. Information Retentia accesses</h2>
+        <p>Retentia accesses browser history only to match URLs against user-defined retention rules and remove URLs whose configured retention period has expired.</p>
+        <p>Retentia may also read the active tab URL when the user explicitly creates a quick rule from the popup or starts a history-based rule action.</p>
+
+        <h2>2. Information Retentia stores</h2>
+        <p>Retentia stores the following data locally in Chrome's extension storage on the user's device:</p>
+        <ul>
+          <li>retention rules</li>
+          <li>settings</li>
+          <li>category overrides</li>
+          <li>protected websites</li>
+          <li>count-only activity summaries</li>
+          <li>count-only scan summaries</li>
+          <li>local password state and password hash</li>
+          <li>authentication delay state</li>
+        </ul>
+        <p>Activity entries and saved scan summaries do not contain deleted URLs or domains.</p>
+        <p>URL candidates may be held temporarily in memory while the simulator or category review view is open, but they are not written to persistent activity logs or scan history.</p>
+        <p>Retentia does not create a separate browser-history log file on the filesystem.</p>
+
+        <h2>3. How Retentia uses information</h2>
+        <p>Retentia uses browser history and local extension storage only to:</p>
+        <ul>
+          <li>apply user-defined retention rules</li>
+          <li>remove expired or explicitly selected history entries</li>
+          <li>show local rule and scan results</li>
+          <li>support category scanning and manual review</li>
+          <li>allow protected websites to override deletion rules</li>
+          <li>support password protection for rule management</li>
+        </ul>
+
+        <h2>4. Sharing and transmission</h2>
+        <p>Retentia does not transmit, sell, rent, or share browser history or other personal data with third parties.</p>
+        <p>Retentia does not use analytics, advertising, account systems, or remote databases.</p>
+        <p>All core processing takes place locally on the user's device.</p>
+
+        <h2>5. Data retention and deletion</h2>
+        <p>Users can clear the local activity log from the dashboard.</p>
+        <p>Uninstalling the extension removes its local extension data according to browser behavior. History removed by Retentia cannot be restored by the extension.</p>
+        <p>The forgotten-password reset deletes the locally stored password hash, retention rules, activity log, authentication-delay state, and last scan summary. It does not delete browser history.</p>
+
+        <h2>6. Password protection</h2>
+        <p>Retentia includes a local password lock intended to discourage casual access to rule management.</p>
+        <p>The password lock is not a security boundary against someone with full access to the user's operating-system account, Chrome profile, local extension storage, or browser developer tools.</p>
+
+        <h2>7. Third-party code</h2>
+        <p>Retentia uses standard open-source frontend and build dependencies, including React, React DOM, Vite, Vitest, TypeScript, and Tailwind CSS.</p>
+        <p>These dependencies are used only for the local user interface, build process, typing, and tests. They do not send browser history or personal data to external servers.</p>
+
+        <h2>8. Permissions</h2>
+        <p>Retentia requests the following Chrome permissions only for its local core features:</p>
+        <ul>
+          <li><code>history</code> to read and clean browser history according to user-defined rules</li>
+          <li><code>storage</code> to save rules and settings locally</li>
+          <li><code>alarms</code> to run scheduled background cleanup</li>
+          <li><code>tabs</code> to read the active tab URL when the user creates a quick rule or starts a history-based action</li>
+          <li><code>contextMenus</code> to provide Retentia actions in Chrome History's right-click menu</li>
+        </ul>
+
+        <h2>9. Changes to this policy</h2>
+        <p>If Retentia's data practices change, this privacy policy will be updated before release.</p>
+
+        <h2>10. Contact</h2>
+        <p>If you have questions about this privacy policy or Retentia's data practices, contact <a href="mailto:wehaveamalfunction@gmail.com">wehaveamalfunction@gmail.com</a>.</p>
+
+        <p class="footer muted">This page is intended for public hosting via GitHub Pages or another public web host.</p>
+      </section>
+    </main>
+  </body>
+</html>

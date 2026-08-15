@@ -15,9 +15,11 @@ import { CATEGORY_PRESETS, getCategoryPreset, suggestCategory } from "../shared/
 import { addMissingDefaultCategoryRules, DEFAULT_CATEGORY_RULES_VERSION } from "../shared/default-rules";
 import { DEFAULT_SETTINGS } from "../shared/defaults";
 import { createBackup, parseBackup } from "../shared/backup";
+import { BUG_REPORT_URL } from "../shared/bug-report";
 import { getReleaseNotes, RELEASE_NOTES } from "../shared/changelog";
+import { installWindowDiagnostics } from "../shared/diagnostics";
 import { SUPPORT_URL } from "../shared/support";
-import type { ActivityEntry, CategoryId, CategoryOverrides, CategoryRejections, CategoryScanResult, RetentionRule, RuleKind, ScanResult, Settings, TimeUnit } from "../shared/types";
+import type { ActivityEntry, CategoryId, CategoryOverrides, CategoryRejections, CategoryScanResult, DiagnosticEntry, RetentionRule, RuleKind, ScanResult, Settings, TimeUnit } from "../shared/types";
 import "../styles.css";
 
 type View = "overview" | "rules" | "categories" | "simulator" | "activity" | "changelog" | "settings";
@@ -61,6 +63,10 @@ function isView(value: string | null): value is View {
   return DASHBOARD_VIEWS.some((item) => item.id === value);
 }
 
+function formatDiagnosticCode(code: string): string {
+  return code.replace(/-/g, " ").replace(/^./, (character) => character.toUpperCase());
+}
+
 async function loadRulesWithDefaults(): Promise<RetentionRule[]> {
   const [loadedRules, preparedVersion] = await Promise.all([
     storage.getRules(),
@@ -86,6 +92,7 @@ function Dashboard() {
   const [rules, setRules] = useState<RetentionRule[]>([]);
   const [settings, setSettings] = useState<Settings>();
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [diagnostics, setDiagnostics] = useState<DiagnosticEntry[]>([]);
   const [lastScan, setLastScan] = useState<ScanResult | null>(null);
   const [draft, setDraft] = useState(EMPTY_RULE);
   const [editingId, setEditingId] = useState<string>();
@@ -116,11 +123,11 @@ function Dashboard() {
 
   async function refresh() {
     await storage.sanitizePrivacyData();
-    const [loadedSettings, loadedActivity, loadedScan, password, unlocked, pendingVersion] = await Promise.all([storage.getSettings(), storage.getActivity(), storage.getLastScan(), storage.getPassword(), sessionStorage.isUnlocked(), storage.getPendingChangelogVersion()]);
-    setSettings(loadedSettings); setActivity(loadedActivity); setLastScan(loadedScan);
+    const [loadedSettings, loadedActivity, loadedDiagnostics, loadedScan, password, unlocked, pendingVersion] = await Promise.all([storage.getSettings(), storage.getActivity(), storage.getDiagnostics(), storage.getLastScan(), storage.getPassword(), sessionStorage.isUnlocked(), storage.getPendingChangelogVersion()]);
+    setSettings(loadedSettings); setActivity(loadedActivity); setDiagnostics(loadedDiagnostics); setLastScan(loadedScan);
     setPendingChangelogVersion(pendingVersion);
     setPasswordReady(Boolean(password));
-    const accessGranted = Boolean(loadedSettings.testingBypassPassword) || unlocked;
+    const accessGranted = unlocked;
     setAppUnlocked(accessGranted);
     if (accessGranted) {
       const [loadedRules, loadedOverrides, loadedRejections, loadedProtected] = await Promise.all([loadRulesWithDefaults(), storage.getCategoryOverrides(), storage.getCategoryRejections(), storage.getProtectedDomains()]);
@@ -135,9 +142,12 @@ function Dashboard() {
     void refresh();
   }, []);
 
+  useEffect(() => installWindowDiagnostics("dashboard"), []);
+
   useEffect(() => {
     const handleStorageChange = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
       if (areaName === "local" && changes.settings?.newValue) setSettings({ ...DEFAULT_SETTINGS, ...changes.settings.newValue } as Settings);
+      if (areaName === "local" && changes.diagnostics) setDiagnostics(Array.isArray(changes.diagnostics.newValue) ? changes.diagnostics.newValue as DiagnosticEntry[] : []);
       if (areaName === "local" && changes.pendingChangelogVersion) {
         const nextVersion = changes.pendingChangelogVersion.newValue;
         setPendingChangelogVersion(typeof nextVersion === "string" ? nextVersion : null);
@@ -333,24 +343,44 @@ function Dashboard() {
     const next = { ...settings!, theme: settings!.theme === "light" ? "dark" as const : "light" as const };
     await updateSettings(next);
   }
-  async function toggleTestingMode() {
-    const enable = !settings?.testingBypassPassword;
-    if (enable && !confirm("Enable Testing mode? Retentia will temporarily stop asking for the password in the popup and dashboard. The saved password is not removed.")) return;
-    const next = { ...settings!, testingBypassPassword: enable };
-    await updateSettings(next);
-    if (enable) {
-      setAppUnlocked(true);
-      setNotice("Testing mode enabled · password prompts are temporarily bypassed");
-    } else {
-      await sessionStorage.lock();
-      setAppUnlocked(false);
-      setNotice("Testing mode disabled · password lock restored");
-    }
-  }
   async function markChangelogSeen() {
     if (!pendingChangelogVersion) return;
     setPendingChangelogVersion(null);
     await storage.clearPendingChangelogVersion();
+  }
+  function downloadDiagnosticReport() {
+    const report = {
+      format: "Retentia privacy-safe diagnostic report",
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      appVersion: extensionVersion,
+      configuration: {
+        ruleCount: rules.length,
+        enabledRuleCount: rules.filter((rule) => rule.enabled).length,
+        categoryOverrideCount: Object.keys(categoryOverrides).length,
+        protectedWebsiteCount: protectedDomains.length,
+        automaticCleanupEnabled: settings?.enabled ?? false,
+        scanIntervalMinutes: settings?.scanIntervalMinutes ?? null,
+        historyWindowDays: settings?.historyWindowDays ?? null,
+      },
+      lastScan: lastScan ? {
+        scanned: lastScan.scanned,
+        matched: lastScan.matched,
+        expired: lastScan.expired,
+        deleted: lastScan.deleted,
+        runAt: lastScan.runAt,
+        resultLimitReached: Boolean(lastScan.resultLimitReached),
+      } : null,
+      crashes: diagnostics,
+      privacy: "This report contains counts and technical metadata only. It does not contain browsing URLs, domains, rule contents, passwords, raw error messages, or stack traces.",
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `retentia-diagnostics-v${extensionVersion}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setNotice("Privacy-safe diagnostic report downloaded");
   }
   function selectView(next: View) {
     setView(next);
@@ -387,9 +417,9 @@ function Dashboard() {
     applyPendingRuleUrl();
   }
   async function resetProtectedData() {
-    if (!confirm("Reset Retentia security? This permanently deletes the password, all retention rules, and the activity log. Browser history will NOT be deleted.")) return;
+    if (!confirm("Reset Retentia security? This permanently deletes the password, all retention rules, the activity log, and the crash log. Browser history will NOT be deleted.")) return;
     await storage.resetProtectedData();
-    await sessionStorage.lock(); setRules([]); setActivity([]); setLastScan(null); setCategoryRejections({}); setPasswordReady(false); setAppUnlocked(false); setView("overview");
+    await sessionStorage.lock(); setRules([]); setActivity([]); setDiagnostics([]); setLastScan(null); setCategoryRejections({}); setPasswordReady(false); setAppUnlocked(false); setView("overview");
   }
 
   useEffect(() => {
@@ -431,12 +461,13 @@ function Dashboard() {
           <p className="mb-0 mt-1 text-xs text-[#5d6b7a] dark:text-[#b6c4d3]">Support its continued development with an optional contribution.</p>
           <a className="mt-3 flex w-full items-center justify-center rounded-xl bg-[#18283d] px-3 py-2 text-xs font-extrabold text-white no-underline transition hover:bg-[#243a57] dark:bg-[#82c950] dark:text-[#102017] dark:hover:bg-[#96d76a]" href={SUPPORT_URL} target="_blank" rel="noreferrer" aria-label="Buy me a coffee via PayPal; opens in a new tab">Buy me a coffee</a>
         </section>
+        <p className="m-0 text-center text-xs font-semibold text-[#5d6b7a] dark:text-[#b6c4d3]">Found a bug? <a className="font-extrabold text-[#4d8b2c] underline-offset-2 hover:underline dark:text-[#a8e77d]" href={BUG_REPORT_URL} target="_blank" rel="noreferrer">Report it</a></p>
       </div>
     </aside>
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#edf7e7,transparent_34%),#f5f7f3] p-4 dark:bg-[radial-gradient(circle_at_top_left,#193324,transparent_34%),#0c1420] sm:p-7 lg:ml-64 lg:p-12">
       <div className="mx-auto max-w-6xl">
         <div className="card mb-5 flex items-center gap-3 p-3 lg:hidden"><img src="/icons/icon-48.png" alt="" className="h-9 w-9"/><label className="min-w-0 flex-1"><span className="sr-only">Dashboard section</span><select className="field !py-2" value={view} onChange={(event) => selectView(event.target.value as View)}>{DASHBOARD_VIEWS.map(({ id, label }) => <option value={id} key={`mobile-${id}`}>{label}</option>)}</select></label><div className="flex shrink-0 items-center gap-2"><span className="pill">v{extensionVersion}</span><button type="button" className="border-0 bg-transparent p-0 text-[11px] font-bold text-[#4d8b2c] underline-offset-2 hover:underline dark:text-[#a8e77d]" onClick={() => selectView("changelog")}>What's new</button></div></div>
-        <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between"><div><p className="muted mb-1 text-sm font-bold uppercase tracking-[.16em]">Control your digital trail</p><h2 className="m-0 text-3xl font-black">{currentView.label}</h2><p className="muted mb-0 mt-2 max-w-xl text-sm">{currentView.description}</p></div><div className="flex flex-wrap items-center gap-3">{settings.testingBypassPassword && <span className="pill !bg-amber-100 !text-amber-800 dark:!bg-amber-900 dark:!text-amber-100">Testing mode · no password</span>}<span className={`pill ${settings.enabled ? '' : '!bg-gray-100 !text-gray-600 dark:!bg-gray-800 dark:!text-gray-200'}`}>{settings.enabled ? 'Protection active' : 'Paused'}</span><button type="button" role="switch" aria-checked={settings.enabled} aria-label="Toggle automatic protection" className={`toggle ${settings.enabled ? 'on' : ''}`} onClick={() => updateSettings({ ...settings, enabled: !settings.enabled })} /><ThemeButton theme={settings.theme} onToggle={toggleTheme}/></div></header>
+        <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between"><div><p className="muted mb-1 text-sm font-bold uppercase tracking-[.16em]">Control your digital trail</p><h2 className="m-0 text-3xl font-black">{currentView.label}</h2><p className="muted mb-0 mt-2 max-w-xl text-sm">{currentView.description}</p></div><div className="flex flex-wrap items-center gap-3"><span className={`pill ${settings.enabled ? '' : '!bg-gray-100 !text-gray-600 dark:!bg-gray-800 dark:!text-gray-200'}`}>{settings.enabled ? 'Protection active' : 'Paused'}</span><button type="button" role="switch" aria-checked={settings.enabled} aria-label="Toggle automatic protection" className={`toggle ${settings.enabled ? 'on' : ''}`} onClick={() => updateSettings({ ...settings, enabled: !settings.enabled })} /><ThemeButton theme={settings.theme} onToggle={toggleTheme}/></div></header>
         {notice && <div role="status" className="notice-success mb-5 flex items-center gap-3"><span className="min-w-0 flex-1 font-semibold">{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Dismiss notification" className="rounded-lg border-0 bg-transparent px-2 py-1 text-lg leading-none">×</button></div>}
 
         {view === "overview" && <>
@@ -510,11 +541,11 @@ function Dashboard() {
 
         {view === "activity" && <section className="card overflow-hidden"><div className="flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="m-0 text-lg font-extrabold">Privacy-safe activity log</h3><p className="muted mb-0 mt-1 text-sm">Stores totals and timestamps only—never deleted URLs or domains.</p></div><button className="btn-danger shrink-0" onClick={async()=>{if(confirm('Clear the activity log?')){await storage.clearActivity();setActivity([])}}}>Clear log</button></div><div>{activity.length ? activity.map(entry=><article className="flex gap-4 border-t border-[#edf0ea] px-6 py-4 dark:border-[#29394a]" key={entry.id}><div aria-hidden="true" className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${entry.type==='error'?'bg-red-500':entry.type==='deleted'?'bg-[#6db33f]':'bg-blue-400'}`}/><div className="min-w-0"><p className="m-0 text-sm font-bold">{entry.message}</p><time className="muted text-xs">{formatDate(entry.timestamp)}</time></div></article>):<p className="muted p-10 text-center">No activity recorded yet.</p>}</div></section>}
 
+        {view === "activity" && <section className="card mt-6 overflow-hidden"><div className="flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="m-0 text-lg font-extrabold">Privacy-safe crash log</h3><p className="muted mb-0 mt-1 max-w-2xl text-sm">Stores up to 50 timestamps and technical identifiers locally. URLs, domains, rule contents, passwords, raw error messages, and stack traces are never recorded.</p></div><div className="flex shrink-0 flex-wrap gap-2"><a className="btn-secondary no-underline" href={BUG_REPORT_URL} target="_blank" rel="noreferrer">Report a bug</a><button className="btn-secondary" onClick={downloadDiagnosticReport}>Download report</button><button className="btn-danger" onClick={async()=>{if(confirm('Clear the crash log?')){await storage.clearDiagnostics();setDiagnostics([])}}}>Clear crash log</button></div></div><div>{diagnostics.length ? diagnostics.map(entry=><article className="flex flex-col gap-2 border-t border-[#edf0ea] px-6 py-4 dark:border-[#29394a] sm:flex-row sm:items-center sm:justify-between" key={entry.id}><div className="min-w-0"><p className="m-0 text-sm font-bold">{formatDiagnosticCode(entry.code)}</p><p className="muted mb-0 mt-1 text-xs">{entry.errorName ?? 'Error'}{entry.file ? ` · ${entry.file}${entry.line ? `:${entry.line}` : ''}` : ''}</p></div><div className="flex shrink-0 items-center gap-2"><span className="pill">{entry.source}</span><span className="muted text-xs">v{entry.appVersion} · {formatDate(entry.timestamp)}</span></div></article>):<p className="muted p-10 text-center">No crashes recorded.</p>}</div></section>}
+
         {view === "changelog" && <section className="space-y-4">{RELEASE_NOTES.map((release, index) => <article className={`card overflow-hidden ${index === 0 ? 'border-[#b9d9aa] dark:border-[#3f6747]' : ''}`} key={release.version}><div className={`flex flex-col gap-3 border-b border-[#e5eae2] p-6 dark:border-[#2b3a4b] sm:flex-row sm:items-start sm:justify-between ${index === 0 ? 'bg-[#f1f8ed] dark:bg-[#193123]' : ''}`}><div><div className="flex flex-wrap items-center gap-2"><h3 className="m-0 text-xl font-black">Retentia {release.version}</h3>{index === 0 && <span className="pill">Latest</span>}</div><p className="muted mb-0 mt-1 text-sm font-semibold">{release.title}</p></div><time className="muted shrink-0 text-xs font-bold uppercase tracking-[.08em]" dateTime={release.date}>{new Intl.DateTimeFormat("en", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" }).format(new Date(`${release.date}T12:00:00Z`))}</time></div><ul className="m-0 space-y-2 px-10 py-6 text-sm">{release.changes.map((change) => <li key={change}>{change}</li>)}</ul></article>)}</section>}
 
-        {view === "settings" && <section className="card mb-6 max-w-3xl border-amber-300 p-7 dark:border-amber-700"><div className="flex items-start justify-between gap-5"><div><h3 className="m-0 text-lg font-extrabold">Testing mode</h3><p className="muted mb-0 mt-2 text-sm">Temporarily bypass password prompts while testing. Your password remains stored and all password code stays active. Turning this off immediately restores the lock.</p></div><button type="button" role="switch" aria-checked={Boolean(settings.testingBypassPassword)} aria-label="Toggle Testing mode" className={`toggle shrink-0 ${settings.testingBypassPassword ? 'on' : ''}`} onClick={() => void toggleTestingMode()}/></div></section>}
-
-        {view === "settings" && <section className="card max-w-3xl p-7"><h3 className="mt-0 text-lg font-extrabold">Protection settings</h3><div className="space-y-6"><div className="flex items-center justify-between"><div><strong>Automatic cleanup</strong><p className="muted m-0 text-sm">Run scans in the background.</p></div><button type="button" role="switch" aria-checked={settings.enabled} aria-label="Toggle automatic cleanup" className={`toggle ${settings.enabled?'on':''}`} onClick={()=>updateSettings({...settings,enabled:!settings.enabled})}/></div><label><span className="label">Scan interval (minutes)</span><input className="field" type="number" min="1" max="1440" value={settings.scanIntervalMinutes} onChange={e=>updateSettings({...settings,scanIntervalMinutes:Number(e.target.value)})}/></label><label><span className="label">History scan window (days)</span><input className="field" type="number" min="1" max="3650" value={settings.historyWindowDays} onChange={e=>updateSettings({...settings,historyWindowDays:Number(e.target.value)})}/></label><label><span className="label">Maximum activity entries</span><input className="field" type="number" min="10" max="5000" value={settings.maxLogEntries} onChange={e=>updateSettings({...settings,maxLogEntries:Number(e.target.value)})}/></label><div className="!mt-5 rounded-xl bg-[#eef7e8] p-4 text-sm dark:bg-[#203729]"><strong>Security scope</strong><p className="muted mb-0">The password lock discourages casual access to Retentia. It cannot protect local data from someone with full access to your Windows account, Chrome profile, or extension developer tools.</p></div></div><ChangePassword/><div className="mt-7 border-t border-[#e5eae2] pt-6 dark:border-[#2b3a4b]"><h4 className="mb-1 mt-0 text-base font-extrabold text-red-700 dark:text-red-300">Forgotten-password reset</h4><p className="muted mt-0 text-sm">Deletes the password, rules, and activity log. Your browser history is never deleted by this reset.</p><button className="btn-danger" onClick={resetProtectedData}>Reset protected Retentia data</button></div></section>}
+        {view === "settings" && <section className="card max-w-3xl p-7"><h3 className="mt-0 text-lg font-extrabold">Protection settings</h3><div className="space-y-6"><div className="flex items-center justify-between"><div><strong>Automatic cleanup</strong><p className="muted m-0 text-sm">Run scans in the background.</p></div><button type="button" role="switch" aria-checked={settings.enabled} aria-label="Toggle automatic cleanup" className={`toggle ${settings.enabled?'on':''}`} onClick={()=>updateSettings({...settings,enabled:!settings.enabled})}/></div><label><span className="label">Scan interval (minutes)</span><input className="field" type="number" min="1" max="1440" value={settings.scanIntervalMinutes} onChange={e=>updateSettings({...settings,scanIntervalMinutes:Number(e.target.value)})}/></label><label><span className="label">History scan window (days)</span><input className="field" type="number" min="1" max="3650" value={settings.historyWindowDays} onChange={e=>updateSettings({...settings,historyWindowDays:Number(e.target.value)})}/></label><label><span className="label">Maximum activity entries</span><input className="field" type="number" min="10" max="5000" value={settings.maxLogEntries} onChange={e=>updateSettings({...settings,maxLogEntries:Number(e.target.value)})}/></label><div className="!mt-5 rounded-xl bg-[#eef7e8] p-4 text-sm dark:bg-[#203729]"><strong>Security scope</strong><p className="muted mb-0">The password lock discourages casual access to Retentia. It cannot protect local data from someone with full access to your Windows account, Chrome profile, or extension developer tools.</p></div></div><ChangePassword/><div className="mt-7 border-t border-[#e5eae2] pt-6 dark:border-[#2b3a4b]"><h4 className="mb-1 mt-0 text-base font-extrabold text-red-700 dark:text-red-300">Forgotten-password reset</h4><p className="muted mt-0 text-sm">Deletes the password, rules, activity log, and crash log. Your browser history is never deleted by this reset.</p><button className="btn-danger" onClick={resetProtectedData}>Reset protected Retentia data</button></div></section>}
 
       </div>
       {passwordReady === false && <PasswordModal mode="setup" onSuccess={() => { setPasswordReady(true); void unlockApplication(); }} />}

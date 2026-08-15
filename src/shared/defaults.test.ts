@@ -3,11 +3,16 @@ import { DEFAULT_SETTINGS, normalizeSettings } from "./defaults";
 
 describe("settings normalization", () => {
   it("preserves valid settings", () => {
-    expect(normalizeSettings({ ...DEFAULT_SETTINGS, theme: "dark", testingBypassPassword: true })).toEqual({
+    expect(normalizeSettings({ ...DEFAULT_SETTINGS, theme: "dark" })).toEqual({
       ...DEFAULT_SETTINGS,
       theme: "dark",
-      testingBypassPassword: true,
     });
+  });
+
+  it("ignores the removed legacy password bypass", () => {
+    const legacySettings = { ...DEFAULT_SETTINGS, testingBypassPassword: true } as Partial<typeof DEFAULT_SETTINGS>;
+    expect(normalizeSettings(legacySettings)).toEqual(DEFAULT_SETTINGS);
+    expect(normalizeSettings(legacySettings)).not.toHaveProperty("testingBypassPassword");
   });
 
   it("repairs invalid and out-of-range numeric settings", () => {

@@ -1,5 +1,5 @@
 import { normalizeSettings, SESSION_KEYS, STORAGE_KEYS } from "./defaults";
-import type { ActivityEntry, AuthThrottle, CategoryOverrides, CategoryRejections, PasswordRecord, ProtectedDomains, RetentionRule, ScanResult, Settings } from "./types";
+import type { ActivityEntry, AuthThrottle, CategoryOverrides, CategoryRejections, DiagnosticEntry, PasswordRecord, ProtectedDomains, RetentionRule, ScanResult, Settings } from "./types";
 
 async function getLocal<T>(key: string, fallback: T): Promise<T> {
   const result = await chrome.storage.local.get(key);
@@ -7,6 +7,7 @@ async function getLocal<T>(key: string, fallback: T): Promise<T> {
 }
 
 let activityWriteQueue: Promise<void> = Promise.resolve();
+let diagnosticWriteQueue: Promise<void> = Promise.resolve();
 
 export const storage = {
   getRules: () => getLocal<RetentionRule[]>(STORAGE_KEYS.rules, []),
@@ -39,6 +40,15 @@ export const storage = {
     return activityWriteQueue;
   },
   clearActivity: () => chrome.storage.local.set({ [STORAGE_KEYS.activity]: [] }),
+  getDiagnostics: () => getLocal<DiagnosticEntry[]>(STORAGE_KEYS.diagnostics, []),
+  addDiagnostic(entry: DiagnosticEntry): Promise<void> {
+    diagnosticWriteQueue = diagnosticWriteQueue.catch(() => undefined).then(async () => {
+      const current = await this.getDiagnostics();
+      await chrome.storage.local.set({ [STORAGE_KEYS.diagnostics]: [entry, ...current].slice(0, 50) });
+    });
+    return diagnosticWriteQueue;
+  },
+  clearDiagnostics: () => chrome.storage.local.set({ [STORAGE_KEYS.diagnostics]: [] }),
   getLastScan: () => getLocal<ScanResult | null>(STORAGE_KEYS.lastScan, null),
   setLastScan: (result: ScanResult) => chrome.storage.local.set({ [STORAGE_KEYS.lastScan]: { ...result, candidates: [] } }),
   getPassword: () => getLocal<PasswordRecord | null>(STORAGE_KEYS.password, null),
@@ -49,11 +59,13 @@ export const storage = {
   resetAuthThrottle: () => chrome.storage.local.set({ [STORAGE_KEYS.authThrottle]: { failedAttempts: 0, lockUntil: 0 } }),
   async resetProtectedData(): Promise<void> {
     const settings = await this.getSettings();
-    await chrome.storage.local.remove([STORAGE_KEYS.password, STORAGE_KEYS.rules, STORAGE_KEYS.activity, STORAGE_KEYS.lastScan, STORAGE_KEYS.authThrottle, STORAGE_KEYS.categoryOverrides, STORAGE_KEYS.categoryRejections, STORAGE_KEYS.protectedDomains, STORAGE_KEYS.defaultCategoryRulesVersion]);
-    await this.setSettings({ ...settings, onboardingComplete: false, testingBypassPassword: false });
+    await chrome.storage.local.remove([STORAGE_KEYS.password, STORAGE_KEYS.rules, STORAGE_KEYS.activity, STORAGE_KEYS.diagnostics, STORAGE_KEYS.lastScan, STORAGE_KEYS.authThrottle, STORAGE_KEYS.categoryOverrides, STORAGE_KEYS.categoryRejections, STORAGE_KEYS.protectedDomains, STORAGE_KEYS.defaultCategoryRulesVersion]);
+    await this.setSettings({ ...settings, onboardingComplete: false });
   },
   async sanitizePrivacyData(): Promise<void> {
     const rawActivity = await getLocal<Array<ActivityEntry & { url?: string; ruleId?: string }>>(STORAGE_KEYS.activity, []);
+    const rawSettings = await getLocal<Record<string, unknown>>(STORAGE_KEYS.settings, {});
+    const hasLegacyPasswordBypass = Object.prototype.hasOwnProperty.call(rawSettings, "testingBypassPassword");
     const legacyDeleted = rawActivity.filter((entry) => entry.type === "deleted" && (entry.url || entry.ruleId));
     const sanitized = rawActivity
       .filter((entry) => !legacyDeleted.includes(entry))
@@ -66,6 +78,7 @@ export const storage = {
     await chrome.storage.local.set({
       [STORAGE_KEYS.activity]: sanitized,
       ...(lastScan ? { [STORAGE_KEYS.lastScan]: { ...lastScan, candidates: [] } } : {}),
+      ...(hasLegacyPasswordBypass ? { [STORAGE_KEYS.settings]: normalizeSettings(rawSettings) } : {}),
     });
   },
 };

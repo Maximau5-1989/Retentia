@@ -10,6 +10,7 @@ Define how long your browser history should exist. Create retention policies for
 - Background cleanup with adjustable scan interval
 - Dry-run simulator before deletion
 - Local activity log and dashboard
+- Privacy-safe local crash log, user-initiated diagnostic download, and direct GitHub bug reporting
 - Quick rule creation from the popup
 - Optional immediate deletion of existing history matched by a newly created rule
 - Nested **Retentia** right-click menu on Chrome's history page with **Create new rule** and **Add to existing rule** actions
@@ -33,7 +34,6 @@ Define how long your browser history should exist. Create retention policies for
 - Existing rules can contain additional exact history URLs while retaining one shared name, timing, priority, and enabled state.
 - The Rules view reports known overlaps and clearly identifies the winning rule.
 - Configuration backups contain rules, settings, category overrides, and protected domains only. Passwords, activity totals, scan results, and browser history are excluded.
-- An explicit, disabled-by-default Testing mode can temporarily bypass password prompts without removing the password. Testing mode is never exported in backups and turning it off immediately restores the lock.
 
 ## Development
 
@@ -74,7 +74,7 @@ Category classification runs entirely in memory. URL paths, queries, and Chrome'
 
 Third-party domain data and attribution are documented in [THIRD_PARTY_DATA.md](THIRD_PARTY_DATA.md). The generated domain database is distributed under CC BY-SA 4.0; Retentia's original source code remains separate from that data license.
 
-The activity log stores removal counts and timestamps only. It does not store deleted URLs or domains. Scan candidate URLs exist temporarily in memory while a simulation is visible but are stripped before the scan summary is saved. Retentia creates no separate history-log file on the filesystem. Retention rules necessarily retain their user-entered match pattern and any exact URLs deliberately attached to them so the background engine can apply those rules.
+The activity log stores removal counts and timestamps only. It does not store deleted URLs or domains. The separate local crash log stores up to 50 timestamps and sanitized technical identifiers only; it excludes URLs, domains, rule contents, passwords, raw error messages, and stack traces. A privacy-safe diagnostic report is created only when the user downloads it and is never transmitted automatically. Scan candidate URLs exist temporarily in memory while a simulation is visible but are stripped before the scan summary is saved. Retentia creates no separate history-log file on the filesystem. Retention rules necessarily retain their user-entered match pattern and any exact URLs deliberately attached to them so the background engine can apply those rules.
 
 The Retentia password is never stored directly. Retentia stores a salted PBKDF2-SHA-256 hash locally. A successful login unlocks the pinned popup and dashboard for the lifetime of the registered dashboard tab. Closing that tab clears the unlock session, so the next opening from the pinned extension icon requires the password again. Rules no longer require a second password prompt after Retentia is unlocked.
 

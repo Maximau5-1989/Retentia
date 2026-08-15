@@ -7,7 +7,6 @@ export const DEFAULT_SETTINGS: Settings = {
   maxLogEntries: 250,
   onboardingComplete: false,
   theme: "light",
-  testingBypassPassword: false,
 };
 
 function boundedInteger(value: unknown, fallback: number, minimum: number, maximum: number): number {
@@ -23,7 +22,6 @@ export function normalizeSettings(value: Partial<Settings> = {}): Settings {
     maxLogEntries: boundedInteger(value.maxLogEntries, DEFAULT_SETTINGS.maxLogEntries, 10, 5_000),
     onboardingComplete: typeof value.onboardingComplete === "boolean" ? value.onboardingComplete : DEFAULT_SETTINGS.onboardingComplete,
     theme: value.theme === "dark" || value.theme === "light" ? value.theme : DEFAULT_SETTINGS.theme,
-    testingBypassPassword: value.testingBypassPassword === true,
   };
 }
 
@@ -31,6 +29,7 @@ export const STORAGE_KEYS = {
   rules: "rules",
   settings: "settings",
   activity: "activity",
+  diagnostics: "diagnostics",
   lastScan: "lastScan",
   password: "password",
   authThrottle: "authThrottle",

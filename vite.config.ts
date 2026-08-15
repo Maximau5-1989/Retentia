@@ -36,6 +36,9 @@ export default defineConfig({
       output: {
         entryFileNames: (chunk) =>
           chunk.name === "background" ? "background.js" : "assets/[name]-[hash].js",
+        manualChunks(id) {
+          if (id.includes("category-domains.json")) return "category-database";
+        },
       },
     },
   },

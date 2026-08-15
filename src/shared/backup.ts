@@ -11,7 +11,6 @@ export function createBackup(data: Omit<RetentiaBackup, "format" | "schemaVersio
     exportedAt: new Date().toISOString(),
     ...data,
     categoryRejections: data.categoryRejections ?? {},
-    settings: { ...data.settings, testingBypassPassword: false },
   };
 }
 
@@ -24,7 +23,8 @@ export function parseBackup(input: string): RetentiaBackup {
   if (value.categoryRejections !== undefined && !isRejections(value.categoryRejections)) throw new Error("The backup contains invalid rejected category suggestions.");
   if (!Array.isArray(value.protectedDomains) || !value.protectedDomains.every((domain) => typeof domain === "string")) throw new Error("The backup contains invalid protected websites.");
   if (typeof value.exportedAt !== "string" || typeof value.appVersion !== "string") throw new Error("The backup metadata is incomplete.");
-  return { ...value, categoryRejections: value.categoryRejections ?? {}, settings: { ...value.settings, testingBypassPassword: false } } as unknown as RetentiaBackup;
+  const { testingBypassPassword: _legacyPasswordBypass, ...settings } = value.settings as Settings & { testingBypassPassword?: unknown };
+  return { ...value, categoryRejections: value.categoryRejections ?? {}, settings } as unknown as RetentiaBackup;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

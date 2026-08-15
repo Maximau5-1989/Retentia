@@ -6,6 +6,7 @@ import { sessionStorage, storage } from "../shared/storage";
 import { deleteHistoryMatchingRule } from "../retention/engine";
 import { CATEGORY_PRESETS, getCategoryPreset, suggestCategory } from "../shared/categories";
 import { findDashboardTab, openDashboardTab } from "../shared/dashboard-tabs";
+import { installWindowDiagnostics } from "../shared/diagnostics";
 import type { CategoryId, RetentionRule, ScanResult, Settings, TimeUnit } from "../shared/types";
 import "../styles.css";
 
@@ -24,13 +25,15 @@ function Popup() {
   const [deleteImmediately, setDeleteImmediately] = useState(false);
   const [category, setCategory] = useState<CategoryId>();
 
+  useEffect(() => installWindowDiagnostics("popup"), []);
+
   useEffect(() => {
     void (async () => {
       const [tabs, value, password, unlocked, loadedRules, loadedScan] = await Promise.all([chrome.tabs.query({ active: true, currentWindow: true }), storage.getSettings(), storage.getPassword(), sessionStorage.isUnlocked(), storage.getRules(), storage.getLastScan()]);
       const dashboardSessionActive = unlocked && Boolean(await findDashboardTab());
       if (unlocked && !dashboardSessionActive) await sessionStorage.lock();
       const activeTab = tabs[0];
-      setTab(activeTab); setSettings(value); setRules(loadedRules); setLastScan(loadedScan); setPasswordReady(Boolean(password)); setAppUnlocked(Boolean(value.testingBypassPassword) || dashboardSessionActive);
+      setTab(activeTab); setSettings(value); setRules(loadedRules); setLastScan(loadedScan); setPasswordReady(Boolean(password)); setAppUnlocked(dashboardSessionActive);
       if (activeTab?.url) {
         const preset = suggestCategory(activeTab.url, activeTab.title);
         if (preset) { setCategory(preset.id); setDuration(preset.duration); setUnit(preset.unit); setDeleteImmediately(preset.deleteImmediately ?? false); }

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_SETTINGS } from "./defaults";
 import { storage } from "./storage";
 
 describe("activity storage", () => {
@@ -55,5 +56,57 @@ describe("pending changelog storage", () => {
     });
 
     await expect(storage.getPendingChangelogVersion()).resolves.toBeNull();
+  });
+});
+
+describe("diagnostic storage", () => {
+  it("serializes writes and retains only the newest 50 entries", async () => {
+    let diagnostics: unknown[] = [];
+    vi.stubGlobal("chrome", {
+      storage: {
+        local: {
+          get: vi.fn(async () => ({ diagnostics })),
+          set: vi.fn(async (values: { diagnostics?: unknown[] }) => {
+            if (values.diagnostics) diagnostics = values.diagnostics;
+          }),
+        },
+      },
+    });
+
+    const entries = Array.from({ length: 55 }, (_, index) => ({
+      id: String(index),
+      timestamp: index,
+      source: "background" as const,
+      code: "unexpected-error" as const,
+      appVersion: "2.0.0",
+    }));
+    await Promise.all(entries.map((entry) => storage.addDiagnostic(entry)));
+
+    expect(diagnostics).toHaveLength(50);
+    expect(diagnostics[0]).toEqual(entries[54]);
+    expect(diagnostics[49]).toEqual(entries[5]);
+  });
+});
+
+describe("privacy migration", () => {
+  it("removes the legacy password bypass from stored settings", async () => {
+    const values: Record<string, unknown> = {
+      activity: [],
+      settings: { ...DEFAULT_SETTINGS, testingBypassPassword: true },
+      lastScan: null,
+    };
+    vi.stubGlobal("chrome", {
+      storage: {
+        local: {
+          get: vi.fn(async (key: string) => ({ [key]: values[key] })),
+          set: vi.fn(async (updates: Record<string, unknown>) => Object.assign(values, updates)),
+        },
+      },
+    });
+
+    await storage.sanitizePrivacyData();
+
+    expect(values.settings).toEqual(DEFAULT_SETTINGS);
+    expect(values.settings).not.toHaveProperty("testingBypassPassword");
   });
 });

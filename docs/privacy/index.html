@@ -111,8 +111,10 @@
           <li>count-only scan summaries</li>
           <li>local password state and password hash</li>
           <li>authentication delay state</li>
+          <li>privacy-safe crash diagnostics</li>
         </ul>
         <p>Activity entries and saved scan summaries do not contain deleted URLs or domains.</p>
+        <p>Crash diagnostics contain timestamps and sanitized technical identifiers only. They do not contain URLs, domains, rule contents, passwords, raw error messages, or stack traces.</p>
         <p>URL candidates may be held temporarily in memory while the simulator or category review view is open, but they are not written to persistent activity logs or scan history.</p>
         <p>Retentia does not create a separate browser-history log file on the filesystem.</p>
 
@@ -131,15 +133,16 @@
         <p>Retentia does not transmit, sell, rent, or share browser history or other personal data with third parties.</p>
         <p>Retentia does not use analytics, advertising, account systems, or remote databases.</p>
         <p>All core processing takes place locally on the user's device.</p>
+        <p>The bug-report link opens GitHub only after the user clicks it. Retentia never automatically sends crash diagnostics. A diagnostic report is generated and downloaded only after explicit user action, and the user decides whether to attach it to a bug report.</p>
 
         <h2>5. Optional support link</h2>
         <p>Retentia may display an optional support button in the dashboard sidebar. The button opens the developer's public PayPal.Me page only after the user explicitly clicks it.</p>
         <p>Retentia does not send browser history, rules, settings, or other extension data to PayPal. Any information provided to PayPal after opening that page is processed by PayPal under its own privacy practices.</p>
 
         <h2>6. Data retention and deletion</h2>
-        <p>Users can clear the local activity log from the dashboard.</p>
+        <p>Users can clear the local activity log and local crash log from the dashboard.</p>
         <p>Uninstalling the extension removes its local extension data according to browser behavior. History removed by Retentia cannot be restored by the extension.</p>
-        <p>The forgotten-password reset deletes the locally stored password hash, retention rules, activity log, authentication-delay state, and last scan summary. It does not delete browser history.</p>
+        <p>The forgotten-password reset deletes the locally stored password hash, retention rules, activity log, crash log, authentication-delay state, and last scan summary. It does not delete browser history.</p>
 
         <h2>7. Password protection</h2>
         <p>Retentia includes a local password lock intended to discourage casual access to rule management.</p>

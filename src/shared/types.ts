@@ -25,7 +25,6 @@ export interface Settings {
   maxLogEntries: number;
   onboardingComplete: boolean;
   theme: "light" | "dark";
-  testingBypassPassword?: boolean;
 }
 
 export interface PasswordRecord {
@@ -46,6 +45,28 @@ export interface ActivityEntry {
   type: "deleted" | "scan" | "error";
   message: string;
   count?: number;
+}
+
+export type DiagnosticSource = "background" | "dashboard" | "popup";
+export type DiagnosticCode =
+  | "alarm-configuration-failed"
+  | "automatic-scan-failed"
+  | "extension-initialization-failed"
+  | "immediate-removal-failed"
+  | "uncaught-error"
+  | "unhandled-promise-rejection"
+  | "unexpected-error";
+
+export interface DiagnosticEntry {
+  id: string;
+  timestamp: number;
+  source: DiagnosticSource;
+  code: DiagnosticCode;
+  appVersion: string;
+  errorName?: string;
+  file?: string;
+  line?: number;
+  column?: number;
 }
 
 export interface HistoryCandidate {

@@ -16,6 +16,8 @@ export const RELEASE_NOTES: readonly ReleaseNotes[] = [
       "Simplified new rules to complete domains and specific URLs while preserving existing wildcard and regular-expression rules.",
       "Improved the simulator, protected websites, backups, privacy-safe reporting, and scan-limit guidance.",
       "Hardened rule validation, settings bounds, password handling, activity writes, and dashboard session locking.",
+      "Removed the temporary password-bypass testing mode so normal password enforcement is always active.",
+      "Added a privacy-safe local crash log, user-initiated diagnostic reports, and direct GitHub bug reporting.",
       "Added one-time update notes, a permanent in-app changelog, and a direct What's new link beside the version.",
     ],
   },

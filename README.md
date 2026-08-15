@@ -4,7 +4,7 @@ Define how long your browser history should exist. Create retention policies for
 
 ## Features
 
-- Exact URL, domain, wildcard, and regular-expression rules
+- Simple domain and exact URL rules, with backwards-compatible wildcard and regular-expression support for existing configurations
 - Configurable retention in minutes, hours, or days
 - Priority resolution for overlapping rules
 - Background cleanup with adjustable scan interval

@@ -80,6 +80,23 @@ The Retentia password is never stored directly. Retentia stores a salted PBKDF2-
 
 After repeated incorrect attempts, Retentia applies an increasing local delay. A forgotten-password reset removes the password, retention rules, activity log, and last scan summary. It never deletes browser history. The password lock is intended to discourage casual access; it is not a security boundary against someone with complete access to the Windows account, Chrome profile, or extension developer tools.
 
+## License
+
+Retentia's original source code and materials are proprietary and
+source-available for transparency and security review. They are not open
+source. Copyright (c) 2026 Max. All rights reserved.
+
+Authorized, unmodified copies may be installed and used by end users. Copying,
+modifying, redistributing, reselling, hosting, or creating derivative works is
+not permitted without prior written permission. See [LICENSE](LICENSE) for the
+complete terms.
+
+Third-party dependencies, assets, and data remain subject to their own
+licenses. In particular, the generated offline category database is distributed
+under CC BY-SA 4.0; its sources and required attributions are documented in
+[THIRD_PARTY_DATA.md](THIRD_PARTY_DATA.md). The proprietary Retentia license
+does not replace or restrict those third-party licenses.
+
 ## Important behavior
 
 Chrome deletes history by URL. A retention timer is therefore based on the URL's most recent visit. Revisiting a URL resets its timer, and deleting an expired URL removes that URL's recorded visits from Chrome history.

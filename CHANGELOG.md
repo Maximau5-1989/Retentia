@@ -2,7 +2,7 @@
 
 ## 2.0.0 — 2026-08-15
 
-- Refined the dashboard and popup with clearer navigation, responsive layouts, searchable and collapsible category results, collapsible rule forms, richer protection status, palette-aligned review panels, consistent notifications, and improved keyboard and screen-reader accessibility.
+- Refined the dashboard and popup with clearer navigation, responsive layouts, searchable and collapsible category results, collapsible rule forms, richer protection status, improved settings spacing, palette-aligned review panels, consistent notifications, and improved keyboard and screen-reader accessibility.
 
 ## 1.9.1 — 2026-08-15
 

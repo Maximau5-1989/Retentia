@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { PasswordModal } from "../components/PasswordModal";
 import { ThemeButton } from "../components/ThemeButton";
 import { ChangePassword } from "../components/ChangePassword";
+import { useConfirmationDialog } from "../components/ConfirmationDialog";
 import { cleanExpiredForRule, deleteHistoryMatchingRule, scanHistory, scanHistoryCategories } from "../retention/engine";
 import { detectRuleConflicts } from "../retention/conflicts";
 import { addManualTarget, normalizeHttpUrl, normalizeRulePattern, removeManualTarget } from "../retention/manual-targets";
@@ -84,6 +85,7 @@ async function loadRulesWithDefaults(): Promise<RetentionRule[]> {
 
 function Dashboard() {
   const extensionVersion = chrome.runtime.getManifest().version;
+  const { requestConfirmation, confirmationDialog } = useConfirmationDialog();
   const initialParameters = new URLSearchParams(window.location.search);
   const requestedRuleUrl = initialParameters.get("createRule") || "";
   const requestedAddToRuleUrl = initialParameters.get("addToRule") || "";
@@ -227,7 +229,13 @@ function Dashboard() {
       setNotice(error instanceof Error ? error.message : "Enter a valid match pattern");
       return;
     }
-    if (isNewRule && deleteExisting && !confirm("Create this rule and permanently delete every existing history URL that matches it? This cannot be undone.")) return;
+    if (isNewRule && deleteExisting && !await requestConfirmation({
+      title: "Create rule and clean existing history?",
+      message: `Retentia will save “${name}” and permanently remove every existing history entry that matches it.`,
+      detail: "Deleted browser history cannot be restored.",
+      confirmLabel: "Create and delete matches",
+      tone: "danger",
+    })) return;
     const normalizedDraft = { ...draft, name, pattern };
     const rule = editingId
       ? { ...rules.find((item) => item.id === editingId)!, ...normalizedDraft }
@@ -240,10 +248,30 @@ function Dashboard() {
   }
   function editRule(rule: RetentionRule) { setEditingId(rule.id); setNewRuleExpanded(true); setDeleteExisting(false); setDraft({ name: rule.name, kind: rule.kind, pattern: rule.pattern, duration: rule.duration, unit: rule.unit, enabled: rule.enabled, deleteImmediately: rule.deleteImmediately ?? false, priority: rule.priority, category: rule.category }); window.scrollTo({ top: 0, behavior: "smooth" }); }
   async function simulate() { setSimulating(true); try { setLastScan(await scanHistory(false)); } finally { setSimulating(false); } }
-  async function runCleanup() { if (!confirm("Delete all currently expired matching URLs from browser history? This cannot be undone.")) return; setSimulating(true); try { setLastScan(await scanHistory(true)); await refresh(); setNotice("Cleanup complete"); } finally { setSimulating(false); } }
+  async function runCleanup() {
+    const expiredCount = lastScan?.expired ?? 0;
+    if (!await requestConfirmation({
+      title: "Clean expired history?",
+      message: expiredCount
+        ? `Retentia will permanently remove up to ${expiredCount} currently expired matching history ${expiredCount === 1 ? "entry" : "entries"}.`
+        : "Retentia will scan your history and permanently remove every expired entry that matches an enabled rule.",
+      detail: "Protected websites are skipped. Deleted browser history cannot be restored.",
+      confirmLabel: expiredCount ? `Delete up to ${expiredCount}` : "Run cleanup",
+      tone: "danger",
+    })) return;
+    setSimulating(true);
+    try { setLastScan(await scanHistory(true)); await refresh(); setNotice("Cleanup complete"); }
+    finally { setSimulating(false); }
+  }
   async function runCategoryScan() { setScanningCategories(true); try { setCategoryScan(await scanHistoryCategories()); } finally { setScanningCategories(false); } }
   async function prepareDefaultRules(activate: boolean) {
-    if (activate && !confirm("Activate all built-in category rules and permanently remove matching history according to each rule's deletion timing? Immediate categories remove every match. This cannot be undone.")) return;
+    if (activate && !await requestConfirmation({
+      title: "Activate every category rule?",
+      message: "Retentia will enable all built-in category rules and clean matching history according to each rule’s deletion timing.",
+      detail: "Categories configured for immediate deletion remove every match. Protected websites are skipped.",
+      confirmLabel: "Activate and clean",
+      tone: "danger",
+    })) return;
     const prepared = addMissingDefaultCategoryRules(rules, { enabled: activate });
     const next = activate ? prepared.rules.map((rule) => rule.kind === "category" ? { ...rule, enabled: true } : rule) : prepared.rules;
     await Promise.all([persistRules(next), storage.setDefaultCategoryRulesVersion(DEFAULT_CATEGORY_RULES_VERSION)]);
@@ -299,7 +327,13 @@ function Dashboard() {
     const cleanupDescription = (existing?.deleteImmediately ?? preset.deleteImmediately)
       ? "all matching history for this category"
       : `history that is older than ${existing?.duration ?? preset.duration} ${existing?.unit ?? preset.unit}`;
-    if (!confirm(`Activate ${preset.label} and permanently remove ${cleanupDescription}? Protected websites are always skipped.`)) return;
+    if (!await requestConfirmation({
+      title: `Activate ${preset.label} and clean history?`,
+      message: `Retentia will activate this category rule and permanently remove ${cleanupDescription}.`,
+      detail: "Protected websites are skipped. Deleted browser history cannot be restored.",
+      confirmLabel: "Activate and clean",
+      tone: "danger",
+    })) return;
     const activeRule: RetentionRule = existing ? { ...existing, enabled: true } : {
       id: crypto.randomUUID(), name: preset.label, kind: "category", pattern: category, category,
       duration: preset.duration, unit: preset.unit, deleteImmediately: preset.deleteImmediately ?? false, enabled: true, priority: 40, createdAt: Date.now(),
@@ -317,7 +351,13 @@ function Dashboard() {
     await storage.setProtectedDomains(next); setProtectedDomains(next); setProtectedDraft(""); setNotice(`${domain} will never be removed`);
   }
   async function removeProtectedDomain(domain: string) {
-    if (!confirm(`Stop protecting ${domain}? Retention rules may remove it during a future cleanup.`)) return;
+    if (!await requestConfirmation({
+      title: "Stop protecting this website?",
+      message: `${domain} will no longer override your retention rules.`,
+      detail: "Matching history may be removed during a future cleanup.",
+      confirmLabel: "Remove protection",
+      tone: "warning",
+    })) return;
     const next = protectedDomains.filter((item) => item !== domain);
     await storage.setProtectedDomains(next); setProtectedDomains(next); setNotice(`${domain} removed from protection`);
   }
@@ -332,7 +372,13 @@ function Dashboard() {
     if (!file) return;
     try {
       const backup = parseBackup(await file.text());
-      if (!confirm(`Restore ${backup.rules.length} rules, settings, category overrides, and protected websites? Current configuration will be replaced. Password, activity totals, and browser history are unchanged.`)) return;
+      if (!await requestConfirmation({
+        title: "Restore this Retentia backup?",
+        message: `The backup contains ${backup.rules.length} ${backup.rules.length === 1 ? "rule" : "rules"}. Your current rules, settings, category corrections, and protected websites will be replaced.`,
+        detail: "Your password, activity totals, crash log, and browser history remain unchanged.",
+        confirmLabel: "Restore backup",
+        tone: "warning",
+      })) return;
       const restoredRejections = backup.categoryRejections ?? {};
       await Promise.all([storage.setRules(backup.rules), storage.setSettings(backup.settings), storage.setCategoryOverrides(backup.categoryOverrides), storage.setCategoryRejections(restoredRejections), storage.setProtectedDomains(backup.protectedDomains)]);
       setRules(backup.rules); setSettings(backup.settings); setCategoryOverrides(backup.categoryOverrides); setCategoryRejections(restoredRejections); setProtectedDomains(backup.protectedDomains); setNotice("Backup restored successfully");
@@ -416,8 +462,46 @@ function Dashboard() {
     await chrome.runtime.sendMessage({ type: "REGISTER_DASHBOARD_TAB" });
     applyPendingRuleUrl();
   }
+  async function deleteRule(rule: RetentionRule) {
+    if (!await requestConfirmation({
+      title: "Delete this retention rule?",
+      message: `“${rule.name}” will be permanently removed from Retentia.`,
+      detail: "This does not delete browser history. History will simply stop being managed by this rule.",
+      confirmLabel: "Delete rule",
+      tone: "danger",
+    })) return;
+    await persistRules(rules.filter((item) => item.id !== rule.id));
+  }
+  async function clearActivityLog() {
+    if (!await requestConfirmation({
+      title: "Clear the activity log?",
+      message: `Retentia will permanently remove ${activity.length} local activity ${activity.length === 1 ? "entry" : "entries"}.`,
+      detail: "This does not affect browser history or retention rules.",
+      confirmLabel: "Clear activity log",
+      tone: "warning",
+    })) return;
+    await storage.clearActivity();
+    setActivity([]);
+  }
+  async function clearCrashLog() {
+    if (!await requestConfirmation({
+      title: "Clear the crash log?",
+      message: `Retentia will permanently remove ${diagnostics.length} local crash ${diagnostics.length === 1 ? "entry" : "entries"}.`,
+      detail: "Download a diagnostic report first if you want to attach these details to a bug report.",
+      confirmLabel: "Clear crash log",
+      tone: "warning",
+    })) return;
+    await storage.clearDiagnostics();
+    setDiagnostics([]);
+  }
   async function resetProtectedData() {
-    if (!confirm("Reset Retentia security? This permanently deletes the password, all retention rules, the activity log, and the crash log. Browser history will NOT be deleted.")) return;
+    if (!await requestConfirmation({
+      title: "Reset protected Retentia data?",
+      message: "This permanently deletes your Retentia password, every retention rule, category correction, protected website, activity entry, and crash diagnostic.",
+      detail: "Your Chrome browser history will not be deleted.",
+      confirmLabel: "Reset Retentia data",
+      tone: "danger",
+    })) return;
     await storage.resetProtectedData();
     await sessionStorage.lock(); setRules([]); setActivity([]); setDiagnostics([]); setLastScan(null); setCategoryRejections({}); setPasswordReady(false); setAppUnlocked(false); setView("overview");
   }
@@ -531,7 +615,7 @@ function Dashboard() {
             </div>}
           </form>
           </div>
-          <section className="space-y-3">{rules.length === 0 ? <div className="card p-8 text-center"><h3>No rules yet</h3><p className="muted">Add your first retention rule to begin.</p></div> : rules.map(rule => <article className="card flex flex-wrap items-center gap-3 p-5" key={rule.id}><button type="button" role="switch" aria-checked={rule.enabled} aria-label={`${rule.enabled ? 'Disable' : 'Enable'} ${rule.name}`} className={`toggle shrink-0 ${rule.enabled?'on':''}`} onClick={() => persistRules(rules.map(item => item.id === rule.id ? {...item,enabled:!item.enabled}:item))}/><div className="min-w-[150px] flex-1"><h3 className="m-0 truncate text-base font-extrabold">{rule.name}</h3></div><button className="btn-secondary" onClick={() => editRule(rule)}>Edit</button><button className="btn-danger" onClick={() => confirm(`Delete “${rule.name}”?`) && void persistRules(rules.filter(item => item.id !== rule.id))}>Delete</button></article>)}</section>
+          <section className="space-y-3">{rules.length === 0 ? <div className="card p-8 text-center"><h3>No rules yet</h3><p className="muted">Add your first retention rule to begin.</p></div> : rules.map(rule => <article className="card flex flex-wrap items-center gap-3 p-5" key={rule.id}><button type="button" role="switch" aria-checked={rule.enabled} aria-label={`${rule.enabled ? 'Disable' : 'Enable'} ${rule.name}`} className={`toggle shrink-0 ${rule.enabled?'on':''}`} onClick={() => persistRules(rules.map(item => item.id === rule.id ? {...item,enabled:!item.enabled}:item))}/><div className="min-w-[150px] flex-1"><h3 className="m-0 truncate text-base font-extrabold">{rule.name}</h3></div><button className="btn-secondary" onClick={() => editRule(rule)}>Edit</button><button className="btn-danger" onClick={() => void deleteRule(rule)}>Delete</button></article>)}</section>
         </div>}
 
         {view === "simulator" && <section>
@@ -539,9 +623,9 @@ function Dashboard() {
           {lastScan ? <><div className="mb-4 grid gap-4 sm:grid-cols-3">{[[lastScan.scanned,'Scanned'],[lastScan.matched,'Matched'],[lastScan.expired,'Expired']].map(([v,l])=><div className="card p-4" key={l}><strong className="text-2xl">{v}</strong><span className="muted ml-2 text-sm">{l}</span></div>)}</div>{lastScan.resultLimitReached && <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">Chrome returned the 100,000-result automatic-scan safety limit. Older matching history may not be included in this preview or cleanup.</div>}<div className="space-y-3">{simulatorRuleGroups.length ? simulatorRuleGroups.map(group => { const expanded=expandedSimulatorRules.includes(group.rule.id); return <article className="card overflow-hidden" key={`simulator-${group.rule.id}`}><button className="flex w-full flex-wrap items-center gap-3 border-0 bg-transparent p-5 text-left text-inherit" onClick={() => toggleSimulatorRule(group.rule.id)} aria-expanded={expanded}><span className="expand-marker">{expanded ? '−' : '+'}</span><div className="min-w-[150px] flex-1"><h3 className="m-0 truncate text-base font-extrabold">{group.rule.name}</h3><p className="muted mb-0 mt-1 text-xs">{group.rule.deleteImmediately ? 'Immediate deletion' : `Keep for ${group.rule.duration} ${group.rule.unit}`}</p></div><span className="pill">{group.matched} matched</span><span className={`pill ${group.expired ? '!bg-[#fff0e8] !text-[#a94f1c]' : ''}`}>{group.expired} expired</span></button>{expanded && <div className="overflow-x-auto border-t border-[#e5eae2] dark:border-[#2b3a4b]">{group.candidates.length ? <><table className="w-full border-collapse text-left text-sm"><thead className="bg-[#eef2eb] dark:bg-[#172536]"><tr><th className="p-4">URL</th><th className="p-4">Expires</th><th className="p-4">Status</th></tr></thead><tbody>{group.candidates.slice(0,500).map(item=><tr className="border-t border-[#edf0ea] dark:border-[#29394a]" key={item.url}><td className="max-w-[520px] truncate p-4" title={item.url}>{shortenUrl(item.url)}</td><td className="p-4">{formatDate(item.expiresAt)}</td><td className="p-4"><span className={`pill ${item.expired?'!bg-[#fff0e8] !text-[#a94f1c]':''}`}>{item.expired?'Expired':'Retained'}</span></td></tr>)}</tbody></table>{group.candidates.length > 500 && <p className="muted m-0 border-t border-[#edf0ea] p-4 text-xs dark:border-[#29394a]">Showing the first 500 of {group.candidates.length} matched URLs.</p>}</> : <p className="muted m-0 p-6 text-center text-sm">No matching URLs for this rule.</p>}</div>}</article>}) : <div className="card p-10 text-center"><h3>No enabled rules</h3><p className="muted">Enable at least one rule to compare simulator results.</p></div>}</div></> : <div className="card p-12 text-center"><h3>Ready to preview</h3><p className="muted">Run a scan to see matching totals for every enabled rule.</p></div>}
         </section>}
 
-        {view === "activity" && <section className="card overflow-hidden"><div className="flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="m-0 text-lg font-extrabold">Privacy-safe activity log</h3><p className="muted mb-0 mt-1 text-sm">Stores totals and timestamps only—never deleted URLs or domains.</p></div><button className="btn-danger shrink-0" onClick={async()=>{if(confirm('Clear the activity log?')){await storage.clearActivity();setActivity([])}}}>Clear log</button></div><div>{activity.length ? activity.map(entry=><article className="flex gap-4 border-t border-[#edf0ea] px-6 py-4 dark:border-[#29394a]" key={entry.id}><div aria-hidden="true" className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${entry.type==='error'?'bg-red-500':entry.type==='deleted'?'bg-[#6db33f]':'bg-blue-400'}`}/><div className="min-w-0"><p className="m-0 text-sm font-bold">{entry.message}</p><time className="muted text-xs">{formatDate(entry.timestamp)}</time></div></article>):<p className="muted p-10 text-center">No activity recorded yet.</p>}</div></section>}
+        {view === "activity" && <section className="card overflow-hidden"><div className="flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="m-0 text-lg font-extrabold">Privacy-safe activity log</h3><p className="muted mb-0 mt-1 text-sm">Stores totals and timestamps only—never deleted URLs or domains.</p></div><button className="btn-danger shrink-0" onClick={() => void clearActivityLog()}>Clear log</button></div><div>{activity.length ? activity.map(entry=><article className="flex gap-4 border-t border-[#edf0ea] px-6 py-4 dark:border-[#29394a]" key={entry.id}><div aria-hidden="true" className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${entry.type==='error'?'bg-red-500':entry.type==='deleted'?'bg-[#6db33f]':'bg-blue-400'}`}/><div className="min-w-0"><p className="m-0 text-sm font-bold">{entry.message}</p><time className="muted text-xs">{formatDate(entry.timestamp)}</time></div></article>):<p className="muted p-10 text-center">No activity recorded yet.</p>}</div></section>}
 
-        {view === "activity" && <section className="card mt-6 overflow-hidden"><div className="flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="m-0 text-lg font-extrabold">Privacy-safe crash log</h3><p className="muted mb-0 mt-1 max-w-2xl text-sm">Stores up to 50 timestamps and technical identifiers locally. URLs, domains, rule contents, passwords, raw error messages, and stack traces are never recorded.</p></div><div className="flex shrink-0 flex-wrap gap-2"><a className="btn-secondary no-underline" href={BUG_REPORT_URL} target="_blank" rel="noreferrer">Report a bug</a><button className="btn-secondary" onClick={downloadDiagnosticReport}>Download report</button><button className="btn-danger" onClick={async()=>{if(confirm('Clear the crash log?')){await storage.clearDiagnostics();setDiagnostics([])}}}>Clear crash log</button></div></div><div>{diagnostics.length ? diagnostics.map(entry=><article className="flex flex-col gap-2 border-t border-[#edf0ea] px-6 py-4 dark:border-[#29394a] sm:flex-row sm:items-center sm:justify-between" key={entry.id}><div className="min-w-0"><p className="m-0 text-sm font-bold">{formatDiagnosticCode(entry.code)}</p><p className="muted mb-0 mt-1 text-xs">{entry.errorName ?? 'Error'}{entry.file ? ` · ${entry.file}${entry.line ? `:${entry.line}` : ''}` : ''}</p></div><div className="flex shrink-0 items-center gap-2"><span className="pill">{entry.source}</span><span className="muted text-xs">v{entry.appVersion} · {formatDate(entry.timestamp)}</span></div></article>):<p className="muted p-10 text-center">No crashes recorded.</p>}</div></section>}
+        {view === "activity" && <section className="card mt-6 overflow-hidden"><div className="flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="m-0 text-lg font-extrabold">Privacy-safe crash log</h3><p className="muted mb-0 mt-1 max-w-2xl text-sm">Stores up to 50 timestamps and technical identifiers locally. URLs, domains, rule contents, passwords, raw error messages, and stack traces are never recorded.</p></div><div className="flex shrink-0 flex-wrap gap-2"><a className="btn-secondary no-underline" href={BUG_REPORT_URL} target="_blank" rel="noreferrer">Report a bug</a><button className="btn-secondary" onClick={downloadDiagnosticReport}>Download report</button><button className="btn-danger" onClick={() => void clearCrashLog()}>Clear crash log</button></div></div><div>{diagnostics.length ? diagnostics.map(entry=><article className="flex flex-col gap-2 border-t border-[#edf0ea] px-6 py-4 dark:border-[#29394a] sm:flex-row sm:items-center sm:justify-between" key={entry.id}><div className="min-w-0"><p className="m-0 text-sm font-bold">{formatDiagnosticCode(entry.code)}</p><p className="muted mb-0 mt-1 text-xs">{entry.errorName ?? 'Error'}{entry.file ? ` · ${entry.file}${entry.line ? `:${entry.line}` : ''}` : ''}</p></div><div className="flex shrink-0 items-center gap-2"><span className="pill">{entry.source}</span><span className="muted text-xs">v{entry.appVersion} · {formatDate(entry.timestamp)}</span></div></article>):<p className="muted p-10 text-center">No crashes recorded.</p>}</div></section>}
 
         {view === "changelog" && <section className="space-y-4">{RELEASE_NOTES.map((release, index) => <article className={`card overflow-hidden ${index === 0 ? 'border-[#b9d9aa] dark:border-[#3f6747]' : ''}`} key={release.version}><div className={`flex flex-col gap-3 border-b border-[#e5eae2] p-6 dark:border-[#2b3a4b] sm:flex-row sm:items-start sm:justify-between ${index === 0 ? 'bg-[#f1f8ed] dark:bg-[#193123]' : ''}`}><div><div className="flex flex-wrap items-center gap-2"><h3 className="m-0 text-xl font-black">Retentia {release.version}</h3>{index === 0 && <span className="pill">Latest</span>}</div><p className="muted mb-0 mt-1 text-sm font-semibold">{release.title}</p></div><time className="muted shrink-0 text-xs font-bold uppercase tracking-[.08em]" dateTime={release.date}>{new Intl.DateTimeFormat("en", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" }).format(new Date(`${release.date}T12:00:00Z`))}</time></div><ul className="m-0 space-y-2 px-10 py-6 text-sm">{release.changes.map((change) => <li key={change}>{change}</li>)}</ul></article>)}</section>}
 
@@ -550,6 +634,7 @@ function Dashboard() {
       </div>
       {passwordReady === false && <PasswordModal mode="setup" onSuccess={() => { setPasswordReady(true); void unlockApplication(); }} />}
       {passwordReady === true && appUnlocked === false && <PasswordModal mode="unlock" onSuccess={unlockApplication} onReset={resetProtectedData} />}
+      {confirmationDialog}
     </main>
   </div>;
 }

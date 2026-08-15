@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { PasswordModal } from "../components/PasswordModal";
 import { ThemeButton } from "../components/ThemeButton";
+import { useConfirmationDialog } from "../components/ConfirmationDialog";
 import { sessionStorage, storage } from "../shared/storage";
 import { deleteHistoryMatchingRule } from "../retention/engine";
 import { CATEGORY_PRESETS, getCategoryPreset, suggestCategory } from "../shared/categories";
@@ -12,6 +13,7 @@ import "../styles.css";
 
 function Popup() {
   const extensionVersion = chrome.runtime.getManifest().version;
+  const { requestConfirmation, confirmationDialog } = useConfirmationDialog();
   const [tab, setTab] = useState<chrome.tabs.Tab>();
   const [settings, setSettings] = useState<Settings>();
   const [rules, setRules] = useState<RetentionRule[]>([]);
@@ -75,7 +77,13 @@ function Popup() {
   }
 
   async function quickAdd() {
-    if (deleteExisting && !confirm("Create this rule and permanently delete all existing history from this domain? This cannot be undone.")) return;
+    if (deleteExisting && !await requestConfirmation({
+      title: "Create rule and clean existing history?",
+      message: `Retentia will save a rule for ${currentHostname} and permanently remove all existing history entries from this domain.`,
+      detail: "Deleted browser history cannot be restored.",
+      confirmLabel: "Create and delete matches",
+      tone: "danger",
+    })) return;
     await addRule();
   }
 
@@ -132,6 +140,7 @@ function Popup() {
     <p className="muted mb-0 mt-3 text-center text-[10px]">Processed locally. Nothing leaves your browser.</p>
     {passwordReady === false && <PasswordModal mode="setup" onSuccess={() => { setPasswordReady(true); setAppUnlocked(true); }} />}
     {passwordReady === true && appUnlocked === false && <PasswordModal mode="unlock" onSuccess={() => setAppUnlocked(true)} />}
+    {confirmationDialog}
   </main>;
 }
 

@@ -12,7 +12,7 @@ describe("release notes", () => {
     const versions = RELEASE_NOTES.map((release) => release.version);
     expect(new Set(versions).size).toBe(versions.length);
     expect(versions.every((version) => /^\d+\.\d+\.\d+$/.test(version))).toBe(true);
-    expect(versions).toEqual(["2.0.0", "1.9.1", "1.9.0", "1.8.0", "1.7.1"]);
+    expect(versions).toEqual(["2.1.0", "2.0.0", "1.9.1", "1.9.0", "1.8.0", "1.7.1"]);
     expect(JSON.stringify(RELEASE_NOTES)).not.toMatch(/paypal|donat|coffee|contribution/i);
   });
 });

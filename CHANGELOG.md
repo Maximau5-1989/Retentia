@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.0 — 2026-08-15
+
+- Replaced Retentia's technical browser confirmation prompts with consistent light- and dark-mode dialogs for cleanup, rule deletion, category activation, backup restore, protection changes, log clearing, and security reset actions. Destructive dialogs now explain their exact scope, show relevant counts where available, focus Cancel by default, and support keyboard navigation and screen readers.
+
 ## 2.0.0 — 2026-08-15
 
 - Refined the dashboard and popup with clearer navigation, responsive layouts, searchable and collapsible category results, collapsible rule forms, richer protection status, improved settings spacing, palette-aligned review panels, consistent notifications, and improved keyboard and screen-reader accessibility. New rules now focus on complete domains and specific URLs, while existing wildcard and regular-expression rules remain supported as legacy advanced rules. Hardened rule input normalization, settings bounds, concurrent activity writes, password error handling, scan-limit disclosure, popup session locking, and single-tab navigation. Removed the temporary password-bypass testing mode. Added a privacy-safe local crash log, user-initiated diagnostic reports, direct GitHub bug reporting, one-time update notes, a permanent in-app changelog, and a direct What's new link beside the version. A fresh installation opens Overview once, while updates and later Chrome startups do not.

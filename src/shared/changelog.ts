@@ -7,6 +7,16 @@ export interface ReleaseNotes {
 
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
   {
+    version: "2.1.0",
+    date: "2026-08-15",
+    title: "Clearer, safer confirmations",
+    changes: [
+      "Replaced technical browser prompts with confirmation dialogs that match Retentia in light and dark mode.",
+      "Added clearer consequences, relevant counts, and purpose-specific labels to destructive actions.",
+      "Made Cancel the safe default and added focus management, keyboard navigation, and screen-reader support.",
+    ],
+  },
+  {
     version: "2.0.0",
     date: "2026-08-15",
     title: "A clearer, safer Retentia",

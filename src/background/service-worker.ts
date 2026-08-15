@@ -69,10 +69,13 @@ async function deleteImmediatelySafely(url: string, title = ""): Promise<void> {
   }
 }
 
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async (details) => {
   await storage.sanitizePrivacyData();
   await configureAlarm();
   await configureContextMenu();
+  if (details.reason === "install") {
+    await chrome.tabs.create({ url: chrome.runtime.getURL("dashboard.html?view=overview") });
+  }
 });
 chrome.runtime.onStartup.addListener(configureAlarm);
 chrome.contextMenus.onClicked.addListener((info) => {

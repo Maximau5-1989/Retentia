@@ -2,7 +2,7 @@
 
 ## 2.0.0 — 2026-08-15
 
-- Refined the dashboard and popup with clearer navigation, responsive layouts, searchable and collapsible category results, collapsible rule forms, richer protection status, improved settings spacing, palette-aligned review panels, consistent notifications, improved keyboard and screen-reader accessibility, without automatically opening Retentia after installation or an update. Dashboard shortcuts now reuse one existing Retentia tab.
+- Refined the dashboard and popup with clearer navigation, responsive layouts, searchable and collapsible category results, collapsible rule forms, richer protection status, improved settings spacing, palette-aligned review panels, consistent notifications, and improved keyboard and screen-reader accessibility. A fresh installation opens Overview once, while updates and later Chrome startups do not. Dashboard shortcuts now reuse one existing Retentia tab.
 
 ## 1.9.1 — 2026-08-15
 

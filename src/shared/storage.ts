@@ -19,6 +19,12 @@ export const storage = {
   setProtectedDomains: (domains: ProtectedDomains) => chrome.storage.local.set({ [STORAGE_KEYS.protectedDomains]: domains }),
   getDefaultCategoryRulesVersion: () => getLocal<number>(STORAGE_KEYS.defaultCategoryRulesVersion, 0),
   setDefaultCategoryRulesVersion: (version: number) => chrome.storage.local.set({ [STORAGE_KEYS.defaultCategoryRulesVersion]: version }),
+  async getPendingChangelogVersion(): Promise<string | null> {
+    const version = await getLocal<unknown>(STORAGE_KEYS.pendingChangelogVersion, null);
+    return typeof version === "string" && /^\d+\.\d+\.\d+$/.test(version) ? version : null;
+  },
+  setPendingChangelogVersion: (version: string) => chrome.storage.local.set({ [STORAGE_KEYS.pendingChangelogVersion]: version }),
+  clearPendingChangelogVersion: () => chrome.storage.local.remove(STORAGE_KEYS.pendingChangelogVersion),
   async getSettings(): Promise<Settings> {
     return normalizeSettings(await getLocal<Partial<Settings>>(STORAGE_KEYS.settings, {}));
   },

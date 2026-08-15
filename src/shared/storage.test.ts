@@ -28,3 +28,32 @@ describe("activity storage", () => {
     expect(activity).toEqual([second, first]);
   });
 });
+
+describe("pending changelog storage", () => {
+  it("stores, reads, and clears a semantic version", async () => {
+    const values: Record<string, unknown> = {};
+    vi.stubGlobal("chrome", {
+      storage: {
+        local: {
+          get: vi.fn(async (key: string) => ({ [key]: values[key] })),
+          set: vi.fn(async (updates: Record<string, unknown>) => Object.assign(values, updates)),
+          remove: vi.fn(async (key: string) => { delete values[key]; }),
+        },
+      },
+    });
+
+    await storage.setPendingChangelogVersion("2.0.0");
+    await expect(storage.getPendingChangelogVersion()).resolves.toBe("2.0.0");
+
+    await storage.clearPendingChangelogVersion();
+    await expect(storage.getPendingChangelogVersion()).resolves.toBeNull();
+  });
+
+  it("ignores an invalid stored version", async () => {
+    vi.stubGlobal("chrome", {
+      storage: { local: { get: vi.fn(async (key: string) => ({ [key]: "not-a-version" })) } },
+    });
+
+    await expect(storage.getPendingChangelogVersion()).resolves.toBeNull();
+  });
+});

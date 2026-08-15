@@ -75,7 +75,10 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   await configureAlarm();
   await configureContextMenu();
   if (details.reason === "install") {
+    await storage.clearPendingChangelogVersion();
     await openDashboardTab({ view: "overview" });
+  } else if (details.reason === "update") {
+    await storage.setPendingChangelogVersion(chrome.runtime.getManifest().version);
   }
 });
 chrome.runtime.onStartup.addListener(configureAlarm);

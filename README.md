@@ -16,6 +16,7 @@ Define how long your browser history should exist. Create retention policies for
 - Light and dark themes
 - Password-protected Retentia interface
 - Optional user-initiated PayPal.Me support link in the dashboard sidebar; contributions never unlock functionality
+- One-time update notes, a permanent in-app changelog, and a direct What's new link beside the version
 
 ## Safety and configuration tools
 

@@ -15,11 +15,12 @@ import { CATEGORY_PRESETS, getCategoryPreset, suggestCategory } from "../shared/
 import { addMissingDefaultCategoryRules, DEFAULT_CATEGORY_RULES_VERSION } from "../shared/default-rules";
 import { DEFAULT_SETTINGS } from "../shared/defaults";
 import { createBackup, parseBackup } from "../shared/backup";
+import { getReleaseNotes, RELEASE_NOTES } from "../shared/changelog";
 import { SUPPORT_URL } from "../shared/support";
 import type { ActivityEntry, CategoryId, CategoryOverrides, CategoryRejections, CategoryScanResult, RetentionRule, RuleKind, ScanResult, Settings, TimeUnit } from "../shared/types";
 import "../styles.css";
 
-type View = "overview" | "rules" | "categories" | "simulator" | "activity" | "settings";
+type View = "overview" | "rules" | "categories" | "simulator" | "activity" | "changelog" | "settings";
 type CategoryFilter = "all" | "review" | "custom" | "automatic";
 const EMPTY_RULE: Omit<RetentionRule, "id" | "createdAt"> = { name: "", kind: "domain", pattern: "", duration: 7, unit: "days", enabled: true, deleteImmediately: false, priority: 50 };
 const DASHBOARD_VIEWS: ReadonlyArray<{ id: View; label: string; description: string }> = [
@@ -28,6 +29,7 @@ const DASHBOARD_VIEWS: ReadonlyArray<{ id: View; label: string; description: str
   { id: "categories", label: "Categories", description: "Review local classifications and correct automatic category matches." },
   { id: "simulator", label: "Simulator", description: "Preview what enabled rules match before removing browser history." },
   { id: "activity", label: "Activity", description: "Review privacy-safe cleanup totals without stored URLs or domains." },
+  { id: "changelog", label: "Changelog", description: "Review what changed in every Retentia release." },
   { id: "settings", label: "Settings", description: "Configure protection, security, backups, and protected websites." },
 ];
 const MATCH_TYPE_DESCRIPTIONS: Record<RuleKind, string> = {
@@ -110,11 +112,13 @@ function Dashboard() {
   const [expandedCategoryBuckets, setExpandedCategoryBuckets] = useState<string[]>([]);
   const [newRuleExpanded, setNewRuleExpanded] = useState(true);
   const [addExistingRuleExpanded, setAddExistingRuleExpanded] = useState(Boolean(requestedAddToRuleUrl));
+  const [pendingChangelogVersion, setPendingChangelogVersion] = useState<string | null>(null);
 
   async function refresh() {
     await storage.sanitizePrivacyData();
-    const [loadedSettings, loadedActivity, loadedScan, password, unlocked] = await Promise.all([storage.getSettings(), storage.getActivity(), storage.getLastScan(), storage.getPassword(), sessionStorage.isUnlocked()]);
+    const [loadedSettings, loadedActivity, loadedScan, password, unlocked, pendingVersion] = await Promise.all([storage.getSettings(), storage.getActivity(), storage.getLastScan(), storage.getPassword(), sessionStorage.isUnlocked(), storage.getPendingChangelogVersion()]);
     setSettings(loadedSettings); setActivity(loadedActivity); setLastScan(loadedScan);
+    setPendingChangelogVersion(pendingVersion);
     setPasswordReady(Boolean(password));
     const accessGranted = Boolean(loadedSettings.testingBypassPassword) || unlocked;
     setAppUnlocked(accessGranted);
@@ -134,6 +138,10 @@ function Dashboard() {
   useEffect(() => {
     const handleStorageChange = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
       if (areaName === "local" && changes.settings?.newValue) setSettings({ ...DEFAULT_SETTINGS, ...changes.settings.newValue } as Settings);
+      if (areaName === "local" && changes.pendingChangelogVersion) {
+        const nextVersion = changes.pendingChangelogVersion.newValue;
+        setPendingChangelogVersion(typeof nextVersion === "string" ? nextVersion : null);
+      }
     };
     chrome.storage.onChanged.addListener(handleStorageChange);
     return () => chrome.storage.onChanged.removeListener(handleStorageChange);
@@ -144,6 +152,10 @@ function Dashboard() {
     const timeout = window.setTimeout(() => setNotice(""), 10_000);
     return () => window.clearTimeout(timeout);
   }, [notice]);
+
+  useEffect(() => {
+    if (view === "changelog" && pendingChangelogVersion) void markChangelogSeen();
+  }, [view, pendingChangelogVersion]);
 
   async function persistRules(next: RetentionRule[]) { setRules(next); await storage.setRules(next); }
   async function attachTargetToRule(ruleId: string, kind: ManualTargetKind, input: string) {
@@ -335,8 +347,14 @@ function Dashboard() {
       setNotice("Testing mode disabled · password lock restored");
     }
   }
+  async function markChangelogSeen() {
+    if (!pendingChangelogVersion) return;
+    setPendingChangelogVersion(null);
+    await storage.clearPendingChangelogVersion();
+  }
   function selectView(next: View) {
     setView(next);
+    if (next === "changelog") void markChangelogSeen();
   }
   function toggleCategoryBucket(key: string) {
     setExpandedCategoryBuckets((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
@@ -387,6 +405,7 @@ function Dashboard() {
   const customCategoryClassifications = Object.entries(categoryOverrides).sort(([first], [second]) => first.localeCompare(second));
   const simulatorRuleGroups = groupSimulatorCandidates(rules, lastScan?.candidates ?? []);
   const currentView = DASHBOARD_VIEWS.find((item) => item.id === view)!;
+  const pendingReleaseNotes = getReleaseNotes(pendingChangelogVersion);
   const normalizedCategorySearch = categorySearch.trim().toLowerCase();
   const filteredCategoryBuckets = categoryScan?.buckets.map((bucket) => ({
     ...bucket,
@@ -403,7 +422,7 @@ function Dashboard() {
   if (!settings) return <div className="p-8">Loading Retentia…</div>;
   return <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#edf7e7,transparent_34%),#f5f7f3]">
     <aside className="fixed inset-y-0 left-0 z-10 hidden w-64 flex-col border-r border-[#e0e6dc] bg-white/90 p-5 backdrop-blur dark:border-[#29394a] dark:bg-[#101b28]/95 lg:flex">
-      <div className="mb-8 flex items-center gap-3"><img src="/icons/icon-48.png" alt="" className="h-11 w-11" /><div><h1 className="m-0 text-xl font-black">Retentia</h1><span className="pill">v{extensionVersion}</span></div></div>
+      <div className="mb-8 flex items-center gap-3"><img src="/icons/icon-48.png" alt="" className="h-11 w-11" /><div className="min-w-0"><h1 className="m-0 text-xl font-black">Retentia</h1><div className="mt-1 flex items-center gap-2"><span className="pill">v{extensionVersion}</span><button type="button" className="border-0 bg-transparent p-0 text-[11px] font-bold text-[#4d8b2c] underline-offset-2 hover:underline dark:text-[#a8e77d]" onClick={() => selectView("changelog")}>View what's new</button></div></div></div>
       <nav aria-label="Dashboard sections" className="space-y-1">{DASHBOARD_VIEWS.map(({ id, label }) => <button type="button" key={id} onClick={() => selectView(id)} aria-current={view === id ? "page" : undefined} className={`w-full rounded-xl border-0 px-4 py-3 text-left font-bold ${view === id ? 'bg-[#18283d] text-white dark:bg-[#82c950] dark:text-[#102017]' : 'bg-transparent text-[#526071] hover:bg-[#f0f4ed] dark:text-[#c4cfdb] dark:hover:bg-[#1a2838]'}`}>{label}</button>)}</nav>
       <div className="mt-auto space-y-3">
         <section className="rounded-2xl border border-[#cfe3c4] bg-[#f4faef] p-4 text-[#162235] dark:border-[#365b39] dark:bg-[#193123] dark:text-[#e8eef5]">
@@ -417,11 +436,12 @@ function Dashboard() {
     </aside>
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#edf7e7,transparent_34%),#f5f7f3] p-4 dark:bg-[radial-gradient(circle_at_top_left,#193324,transparent_34%),#0c1420] sm:p-7 lg:ml-64 lg:p-12">
       <div className="mx-auto max-w-6xl">
-        <div className="card mb-5 flex items-center gap-3 p-3 lg:hidden"><img src="/icons/icon-48.png" alt="" className="h-9 w-9"/><label className="min-w-0 flex-1"><span className="sr-only">Dashboard section</span><select className="field !py-2" value={view} onChange={(event) => selectView(event.target.value as View)}>{DASHBOARD_VIEWS.map(({ id, label }) => <option value={id} key={`mobile-${id}`}>{label}</option>)}</select></label><span className="pill">v{extensionVersion}</span></div>
+        <div className="card mb-5 flex items-center gap-3 p-3 lg:hidden"><img src="/icons/icon-48.png" alt="" className="h-9 w-9"/><label className="min-w-0 flex-1"><span className="sr-only">Dashboard section</span><select className="field !py-2" value={view} onChange={(event) => selectView(event.target.value as View)}>{DASHBOARD_VIEWS.map(({ id, label }) => <option value={id} key={`mobile-${id}`}>{label}</option>)}</select></label><div className="flex shrink-0 items-center gap-2"><span className="pill">v{extensionVersion}</span><button type="button" className="border-0 bg-transparent p-0 text-[11px] font-bold text-[#4d8b2c] underline-offset-2 hover:underline dark:text-[#a8e77d]" onClick={() => selectView("changelog")}>What's new</button></div></div>
         <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between"><div><p className="muted mb-1 text-sm font-bold uppercase tracking-[.16em]">Control your digital trail</p><h2 className="m-0 text-3xl font-black">{currentView.label}</h2><p className="muted mb-0 mt-2 max-w-xl text-sm">{currentView.description}</p></div><div className="flex flex-wrap items-center gap-3">{settings.testingBypassPassword && <span className="pill !bg-amber-100 !text-amber-800 dark:!bg-amber-900 dark:!text-amber-100">Testing mode · no password</span>}<span className={`pill ${settings.enabled ? '' : '!bg-gray-100 !text-gray-600 dark:!bg-gray-800 dark:!text-gray-200'}`}>{settings.enabled ? 'Protection active' : 'Paused'}</span><button type="button" role="switch" aria-checked={settings.enabled} aria-label="Toggle automatic protection" className={`toggle ${settings.enabled ? 'on' : ''}`} onClick={() => updateSettings({ ...settings, enabled: !settings.enabled })} /><ThemeButton theme={settings.theme} onToggle={toggleTheme}/></div></header>
         {notice && <div role="status" className="notice-success mb-5 flex items-center gap-3"><span className="min-w-0 flex-1 font-semibold">{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Dismiss notification" className="rounded-lg border-0 bg-transparent px-2 py-1 text-lg leading-none">×</button></div>}
 
         {view === "overview" && <>
+          {pendingReleaseNotes && <section className="card mb-6 overflow-hidden border-[#b9d9aa] dark:border-[#3f6747]"><div className="bg-[linear-gradient(135deg,#edf7e7,#ffffff)] p-7 dark:bg-[linear-gradient(135deg,#193123,#14202e)]"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="mb-2 text-xs font-extrabold uppercase tracking-[.16em] text-[#4d8b2c] dark:text-[#a8e77d]">Updated to v{pendingReleaseNotes.version}</p><h3 className="m-0 text-2xl font-black">What's new in Retentia</h3><p className="muted mb-0 mt-2 text-sm">{pendingReleaseNotes.title}</p></div><span className="pill">New</span></div><ul className="mb-0 mt-5 space-y-2 pl-5 text-sm">{pendingReleaseNotes.changes.slice(0, 3).map((change) => <li key={change}>{change}</li>)}</ul><div className="mt-6 flex flex-wrap gap-3"><button className="btn-primary" onClick={() => selectView("changelog")}>View all changes</button><button className="btn-secondary" onClick={() => void markChangelogSeen()}>Dismiss</button></div></div></section>}
           {!settings.onboardingComplete && <section className="card mb-6 overflow-hidden p-7" style={{ background: "#18283d", color: "#ffffff" }}><p className="mb-2 text-xs font-bold uppercase tracking-[.18em]" style={{ color: "#9bd66f" }}>Welcome to Retentia</p><h3 className="m-0 text-2xl font-black" style={{ color: "#ffffff" }}>Give history an expiration date.</h3><p className="max-w-2xl" style={{ color: "#cbd4df" }}>Create rules, preview their effect in the simulator, then let Retentia clean matching URLs automatically.</p><div className="flex gap-3"><button className="rounded-xl border-0 bg-[#82c950] px-4 py-2 font-bold text-[#162235]" onClick={() => setView('rules')}>Create first rule</button><button className="rounded-xl border border-white/30 bg-white/10 px-4 py-2 font-bold" style={{ color: "#ffffff" }} onClick={() => updateSettings({ ...settings, onboardingComplete: true })}>Got it</button></div></section>}
           <section className="grid gap-5 md:grid-cols-3">{[[enabledRules,'Active rules'],[deletedCount,'URLs removed'],[lastScan?.scanned ?? 0,'Last scan size']].map(([value,label]) => <div className="card p-6" key={label}><p className="m-0 text-4xl font-black">{value}</p><p className="muted mb-0 mt-2 font-semibold">{label}</p></div>)}</section>
           <section className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_1fr]"><div className="card p-6"><div className="flex items-center justify-between"><h3 className="m-0 text-lg font-extrabold">System status</h3><button className="btn-primary" onClick={() => { setView('simulator'); void simulate(); }}>Run preview</button></div><dl className="mt-5 grid grid-cols-2 gap-4"><div><dt className="muted text-xs font-bold uppercase">Last scan</dt><dd className="ml-0 mt-1 font-bold">{formatDate(lastScan?.runAt)}</dd></div><div><dt className="muted text-xs font-bold uppercase">Schedule</dt><dd className="ml-0 mt-1 font-bold">Every {settings.scanIntervalMinutes} min</dd></div><div><dt className="muted text-xs font-bold uppercase">Matched last scan</dt><dd className="ml-0 mt-1 font-bold">{lastScan?.matched ?? 0}</dd></div><div><dt className="muted text-xs font-bold uppercase">Ready to expire</dt><dd className="ml-0 mt-1 font-bold">{lastScan?.expired ?? 0}</dd></div></dl></div><div className="card p-6"><h3 className="m-0 text-lg font-extrabold">Privacy-safe activity</h3><p className="muted text-sm">Retentia stores removal totals only. Deleted URLs and domains are never written to its activity or scan history.</p><div className="mt-5 text-3xl font-black">{deletedCount}</div><p className="muted mt-1 text-xs font-bold uppercase">History URLs removed</p></div></section>
@@ -490,6 +510,8 @@ function Dashboard() {
         </section>}
 
         {view === "activity" && <section className="card overflow-hidden"><div className="flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="m-0 text-lg font-extrabold">Privacy-safe activity log</h3><p className="muted mb-0 mt-1 text-sm">Stores totals and timestamps only—never deleted URLs or domains.</p></div><button className="btn-danger shrink-0" onClick={async()=>{if(confirm('Clear the activity log?')){await storage.clearActivity();setActivity([])}}}>Clear log</button></div><div>{activity.length ? activity.map(entry=><article className="flex gap-4 border-t border-[#edf0ea] px-6 py-4 dark:border-[#29394a]" key={entry.id}><div aria-hidden="true" className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${entry.type==='error'?'bg-red-500':entry.type==='deleted'?'bg-[#6db33f]':'bg-blue-400'}`}/><div className="min-w-0"><p className="m-0 text-sm font-bold">{entry.message}</p><time className="muted text-xs">{formatDate(entry.timestamp)}</time></div></article>):<p className="muted p-10 text-center">No activity recorded yet.</p>}</div></section>}
+
+        {view === "changelog" && <section className="space-y-4">{RELEASE_NOTES.map((release, index) => <article className={`card overflow-hidden ${index === 0 ? 'border-[#b9d9aa] dark:border-[#3f6747]' : ''}`} key={release.version}><div className={`flex flex-col gap-3 border-b border-[#e5eae2] p-6 dark:border-[#2b3a4b] sm:flex-row sm:items-start sm:justify-between ${index === 0 ? 'bg-[#f1f8ed] dark:bg-[#193123]' : ''}`}><div><div className="flex flex-wrap items-center gap-2"><h3 className="m-0 text-xl font-black">Retentia {release.version}</h3>{index === 0 && <span className="pill">Latest</span>}</div><p className="muted mb-0 mt-1 text-sm font-semibold">{release.title}</p></div><time className="muted shrink-0 text-xs font-bold uppercase tracking-[.08em]" dateTime={release.date}>{new Intl.DateTimeFormat("en", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" }).format(new Date(`${release.date}T12:00:00Z`))}</time></div><ul className="m-0 space-y-2 px-10 py-6 text-sm">{release.changes.map((change) => <li key={change}>{change}</li>)}</ul></article>)}</section>}
 
         {view === "settings" && <section className="card mb-6 max-w-3xl border-amber-300 p-7 dark:border-amber-700"><div className="flex items-start justify-between gap-5"><div><h3 className="m-0 text-lg font-extrabold">Testing mode</h3><p className="muted mb-0 mt-2 text-sm">Temporarily bypass password prompts while testing. Your password remains stored and all password code stays active. Turning this off immediately restores the lock.</p></div><button type="button" role="switch" aria-checked={Boolean(settings.testingBypassPassword)} aria-label="Toggle Testing mode" className={`toggle shrink-0 ${settings.testingBypassPassword ? 'on' : ''}`} onClick={() => void toggleTestingMode()}/></div></section>}
 

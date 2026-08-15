@@ -38,6 +38,7 @@ export const STORAGE_KEYS = {
   categoryRejections: "categoryRejections",
   protectedDomains: "protectedDomains",
   defaultCategoryRulesVersion: "defaultCategoryRulesVersion",
+  pendingChangelogVersion: "pendingChangelogVersion",
 } as const;
 
 export const SESSION_KEYS = {

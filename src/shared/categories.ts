@@ -1,4 +1,5 @@
 import type { CategoryId, CategoryOverrides, CategoryRejections, CategoryScanBucket, CategoryScanDomain, TimeUnit } from "./types";
+import { findDatabaseCategories } from "./category-database";
 
 export type CategoryConfidence = "high" | "medium" | "none";
 
@@ -30,7 +31,7 @@ export interface CategoryClassification {
   suggestedCategory?: CategoryId;
   confidence: CategoryConfidence;
   score: number;
-  source: "domain" | "signals" | "override" | "none";
+  source: "database" | "domain" | "signals" | "override" | "none";
 }
 
 export const CATEGORY_PRESETS: readonly CategoryPreset[] = [
@@ -166,6 +167,11 @@ export function classifyCategory(input: string, title = "", overrides: CategoryO
   const domainPreset = CATEGORY_PRESETS.find((preset) => preset.domains.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`)));
   if (domainPreset) return { category: domainPreset.id, confidence: "high", score: 100, source: "domain" };
 
+  const databaseCategories = findDatabaseCategories(hostname);
+  if (databaseCategories.length === 1) {
+    return { category: databaseCategories[0], confidence: "high", score: 95, source: "database" };
+  }
+
   const urlText = `${parsed.pathname} ${parsed.search}`;
   const scores = CATEGORY_PRESETS
     .map((preset) => ({ preset, ...scoreSignals(hostname, urlText, title, preset.signals) }))
@@ -176,10 +182,16 @@ export function classifyCategory(input: string, title = "", overrides: CategoryO
 
   const highThreshold = winner.preset.signals.highConfidenceScore ?? DEFAULT_HIGH_CONFIDENCE_SCORE;
   if (winner.score >= highThreshold && winner.score - runnerUp >= HIGH_CONFIDENCE_MARGIN && winner.sourceCount >= 2) {
-    return { category: winner.preset.id, confidence: "high", score: winner.score, source: "signals" };
+    if (!databaseCategories.length || databaseCategories.includes(winner.preset.id)) {
+      return { category: winner.preset.id, confidence: "high", score: winner.score, source: databaseCategories.length ? "database" : "signals" };
+    }
+    return { confidence: "none", score: winner.score, source: "none" };
   }
   if (winner.score - runnerUp < MEDIUM_CONFIDENCE_MARGIN) return { confidence: "none", score: winner.score, source: "none" };
-  return { suggestedCategory: winner.preset.id, confidence: "medium", score: winner.score, source: "signals" };
+  if (databaseCategories.length && !databaseCategories.includes(winner.preset.id)) {
+    return { confidence: "none", score: winner.score, source: "none" };
+  }
+  return { suggestedCategory: winner.preset.id, confidence: "medium", score: winner.score, source: databaseCategories.length ? "database" : "signals" };
 }
 
 export function suggestCategory(input: string, title = ""): CategoryPreset | undefined {

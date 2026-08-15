@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.0 — 2026-08-15
+
+- Added a privacy-preserving offline popular-domain database for every category, including 46,021 18+ domains, with conflict-safe classification and documented attribution.
+
 ## 1.8.0 — 2026-08-15
 
 - Expanded category coverage and made local classification stricter for ambiguous or single-source signals.

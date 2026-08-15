@@ -22,6 +22,8 @@ Define how long your browser history should exist. Create retention policies for
 - Category presets can be activated, paused, and cleaned independently.
 - The optional **18+** category uses a transparent local domain list, is disabled by default, and suggests immediate history removal.
 - The local classification engine combines an expanded set of known domains, subdomains, URL structure, and Chrome's stored page title. It never opens websites or reads page content.
+- A bundled offline database adds popular domains for every built-in category, including 46,021 popular 18+ domains. It is generated from UT1 and Curlie categorization data filtered by Google CrUX popularity data.
+- The category database is updated only when a new Retentia release is built. Retentia never submits visited domains or history to these data providers.
 - Automatic category matches require high-confidence evidence from multiple independent signals. Ambiguous and medium-confidence results remain uncategorized and are shown as possible matches for manual review.
 - Possible category matches appear in dedicated review panels where a domain can be confirmed before category rules may use it.
 - Rules automatically receives one disabled default rule for every built-in category without duplicating existing category rules.
@@ -67,6 +69,8 @@ Retentia uses the Chrome History API and local extension storage. It has no host
 The public privacy policy is available at https://maximau5-1989.github.io/Retentia/privacy/.
 
 Category classification runs entirely in memory. URL paths, queries, and Chrome's stored page titles can contribute to a confidence score, but classification details are discarded when the dashboard is closed or refreshed and are never written to the activity log.
+
+Third-party domain data and attribution are documented in [THIRD_PARTY_DATA.md](THIRD_PARTY_DATA.md). The generated domain database is distributed under CC BY-SA 4.0; Retentia's original source code remains separate from that data license.
 
 The activity log stores removal counts and timestamps only. It does not store deleted URLs or domains. Scan candidate URLs exist temporarily in memory while a simulation is visible but are stripped before the scan summary is saved. Retentia creates no separate history-log file on the filesystem. Retention rules necessarily retain their user-entered match pattern and any exact URLs deliberately attached to them so the background engine can apply those rules.
 

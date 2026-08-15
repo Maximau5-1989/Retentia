@@ -72,6 +72,26 @@ describe("local category classifier", () => {
     expect(suggestCategory("https://transavia.com/flight/example")?.id).toBe("travel");
   });
 
+  it("uses the bundled offline database for popular domains and subdomains", () => {
+    expect(classifyCategory("https://aznude.com/example")).toMatchObject({
+      category: "adult",
+      confidence: "high",
+      source: "database",
+    });
+    expect(classifyCategory("https://offers.bestbuy.com/example")).toMatchObject({
+      category: "shopping",
+      confidence: "high",
+      source: "database",
+    });
+  });
+
+  it("does not automatically classify conflicting database categories", () => {
+    expect(classifyCategory("https://10news.com/")).toMatchObject({
+      confidence: "none",
+      source: "none",
+    });
+  });
+
   it("normalizes URLs without returning path or query content", () => {
     expect(normalizeHostname("WWW.GOOGLE.NL/search?q=private")).toBe("google.nl");
   });

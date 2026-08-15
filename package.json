@@ -1,13 +1,14 @@
 {
   "name": "retentia",
   "private": true,
-  "version": "1.8.0",
+  "version": "1.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build --configLoader runner",
     "test": "vitest run --configLoader runner",
     "check": "pnpm run test && pnpm run build",
+    "data:categories": "node scripts/build-category-database.mjs",
     "release:patch": "node scripts/release.mjs patch",
     "release:minor": "node scripts/release.mjs minor",
     "release:major": "node scripts/release.mjs major",

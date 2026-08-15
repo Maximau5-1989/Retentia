@@ -73,7 +73,6 @@ chrome.runtime.onInstalled.addListener(async () => {
   await storage.sanitizePrivacyData();
   await configureAlarm();
   await configureContextMenu();
-  chrome.runtime.openOptionsPage();
 });
 chrome.runtime.onStartup.addListener(configureAlarm);
 chrome.contextMenus.onClicked.addListener((info) => {

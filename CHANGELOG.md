@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.0 — 2026-08-15
+
+- Refined the dashboard and popup with clearer navigation, responsive layouts, searchable and collapsible category results, richer protection status, consistent notifications, and improved keyboard and screen-reader accessibility.
+
 ## 1.9.1 — 2026-08-15
 
 - Added persistent local user classifications for every scanned domain, including a safe uncategorized override for false positives and expanded possible-match review controls.

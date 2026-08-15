@@ -64,6 +64,17 @@ describe("Retentia backups", () => {
     expect(parseBackup(JSON.stringify(adultBackup)).categoryOverrides).toEqual({ "private.example": "adult" });
   });
 
+  it("preserves user-classified uncategorized domains", () => {
+    const uncategorizedBackup = createBackup({
+      appVersion: backup.appVersion,
+      rules: [],
+      settings: backup.settings,
+      categoryOverrides: { "false-positive.example": null },
+      protectedDomains: [],
+    });
+    expect(parseBackup(JSON.stringify(uncategorizedBackup)).categoryOverrides).toEqual({ "false-positive.example": null });
+  });
+
   it("preserves rejected category suggestions and supports older backups", () => {
     const rejectedBackup = createBackup({
       appVersion: backup.appVersion,

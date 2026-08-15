@@ -19,6 +19,11 @@ describe("rule matcher", () => {
     expect(matchesRule("https://nos.nl/article", categoryRule)).toBe(true);
     expect(matchesRule("https://example.com/article", categoryRule, { "example.com": "news" })).toBe(true);
   });
+  it("excludes a user-classified false positive from category rules", () => {
+    const categoryRule = rule({ kind: "category", pattern: "adult", category: "adult", deleteImmediately: true });
+    expect(matchesRule("https://aznude.com/example", categoryRule)).toBe(true);
+    expect(matchesRule("https://aznude.com/example", categoryRule, { "aznude.com": null })).toBe(false);
+  });
   it("uses the highest-priority matching rule", () => {
     const winner = findWinningRule("https://example.com/a", [rule({ id: "low", priority: 1 }), rule({ id: "high", priority: 99 })]);
     expect(winner?.id).toBe("high");

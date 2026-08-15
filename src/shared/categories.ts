@@ -162,7 +162,11 @@ export function classifyCategory(input: string, title = "", overrides: CategoryO
   if (!parsed) return { confidence: "none", score: 0, source: "none" };
   const hostname = parsed.hostname.replace(/^www\./, "");
   const override = findOverride(hostname, overrides);
-  if (override) return { category: override, confidence: "high", score: 100, source: "override" };
+  if (override) {
+    return override.category
+      ? { category: override.category, confidence: "high", score: 100, source: "override" }
+      : { confidence: "none", score: 0, source: "override" };
+  }
 
   const domainPreset = CATEGORY_PRESETS.find((preset) => preset.domains.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`)));
   if (domainPreset) return { category: domainPreset.id, confidence: "high", score: 100, source: "domain" };
@@ -260,10 +264,11 @@ function parseUrl(input: string): URL | undefined {
   }
 }
 
-function findOverride(hostname: string, overrides: CategoryOverrides): CategoryId | undefined {
-  return Object.entries(overrides)
+function findOverride(hostname: string, overrides: CategoryOverrides): { category?: CategoryId } | undefined {
+  const match = Object.entries(overrides)
     .sort(([a], [b]) => b.length - a.length)
-    .find(([domain]) => hostname === domain || hostname.endsWith(`.${domain}`))?.[1];
+    .find(([domain]) => hostname === domain || hostname.endsWith(`.${domain}`));
+  return match ? { category: match[1] ?? undefined } : undefined;
 }
 
 function scoreSignals(hostname: string, urlText: string, title: string, signals: ClassificationSignals): SignalScore {

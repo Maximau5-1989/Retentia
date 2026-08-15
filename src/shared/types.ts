@@ -84,7 +84,7 @@ export interface CategoryScanDomain {
   suggestedCategory?: CategoryId;
 }
 
-export type CategoryOverrides = Record<string, CategoryId>;
+export type CategoryOverrides = Record<string, CategoryId | null>;
 export type CategoryRejections = Record<string, CategoryId[]>;
 export type ProtectedDomains = string[];
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.1 — 2026-08-15
+
+- Added persistent local user classifications for every scanned domain, including a safe uncategorized override for false positives and expanded possible-match review controls.
+
 ## 1.9.0 — 2026-08-15
 
 - Added a privacy-preserving offline popular-domain database for every category, including 46,021 18+ domains, with conflict-safe classification and documented attribution.

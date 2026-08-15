@@ -123,6 +123,20 @@ describe("local category classifier", () => {
     expect(bucket?.domains[0]).toMatchObject({ domain: "media.example", overridden: true, confidence: "high" });
   });
 
+  it("lets users permanently keep a false positive uncategorized", () => {
+    expect(classifyCategory("https://aznude.com/example", "", { "aznude.com": null })).toMatchObject({
+      confidence: "none",
+      score: 0,
+      source: "override",
+    });
+    expect(resolveCategory("https://aznude.com/example", { "aznude.com": null })).toBeUndefined();
+    const bucket = categorizeHistoryEntries(
+      [{ url: "https://aznude.com/example", visitCount: 2 }],
+      { "aznude.com": null },
+    ).find((item) => !item.category);
+    expect(bucket?.domains[0]).toMatchObject({ domain: "aznude.com", overridden: true, confidence: "none" });
+  });
+
   it("keeps the 18+ preset opt-in and configured for immediate deletion", () => {
     const preset = suggestCategory("xvideos.com");
     expect(preset?.label).toBe("18+");

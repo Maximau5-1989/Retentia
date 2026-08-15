@@ -52,7 +52,7 @@ function isSettings(value: unknown): value is Settings {
 }
 
 function isOverrides(value: unknown): value is CategoryOverrides {
-  return isRecord(value) && Object.values(value).every((category) => CATEGORY_IDS.has(category as CategoryId));
+  return isRecord(value) && Object.values(value).every((category) => category === null || CATEGORY_IDS.has(category as CategoryId));
 }
 
 function isRejections(value: unknown): value is CategoryRejections {

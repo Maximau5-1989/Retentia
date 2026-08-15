@@ -30,6 +30,11 @@ describe("Retentia backups", () => {
     expect(() => parseBackup('{"format":"other"}')).toThrow("supported Retentia backup");
   });
 
+  it("rejects unsafe numeric settings instead of restoring them", () => {
+    const invalid = { ...backup, settings: { ...backup.settings, scanIntervalMinutes: 0 } };
+    expect(() => parseBackup(JSON.stringify(invalid))).toThrow("invalid settings");
+  });
+
   it("preserves immediate-deletion rules", () => {
     const immediateRule: RetentionRule = {
       id: "immediate",

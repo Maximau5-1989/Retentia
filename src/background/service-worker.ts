@@ -1,5 +1,6 @@
 import { deleteVisitedUrlImmediately, scanHistory } from "../retention/engine";
 import { sessionStorage, storage } from "../shared/storage";
+import { findDashboardTab, openDashboardTab } from "../shared/dashboard-tabs";
 
 const ALARM_NAME = "retentia-scan";
 const HISTORY_CONTEXT_MENU_ID = "retentia-history-menu";
@@ -74,7 +75,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   await configureAlarm();
   await configureContextMenu();
   if (details.reason === "install") {
-    await chrome.tabs.create({ url: chrome.runtime.getURL("dashboard.html?view=overview") });
+    await openDashboardTab({ view: "overview" });
   }
 });
 chrome.runtime.onStartup.addListener(configureAlarm);
@@ -86,12 +87,13 @@ chrome.contextMenus.onClicked.addListener((info) => {
       ? "addToRule"
       : undefined;
   if (!action) return;
-  const target = new URL(chrome.runtime.getURL("dashboard.html"));
-  target.searchParams.set(action, info.linkUrl);
-  void chrome.tabs.create({ url: target.href });
+  void openDashboardTab({ [action]: info.linkUrl });
 });
 chrome.tabs.onRemoved.addListener(async (tabId) => {
-  if (tabId === await sessionStorage.getDashboardTabId()) await sessionStorage.lock();
+  if (tabId !== await sessionStorage.getDashboardTabId()) return;
+  const remainingDashboard = await findDashboardTab();
+  if (remainingDashboard?.id !== undefined) await sessionStorage.setDashboardTabId(remainingDashboard.id);
+  else await sessionStorage.lock();
 });
 chrome.alarms.onAlarm.addListener((alarm) => { if (alarm.name === ALARM_NAME) void runSafely(); });
 chrome.history.onVisited.addListener((item) => { if (item.url) void deleteImmediatelySafely(item.url, item.title); });

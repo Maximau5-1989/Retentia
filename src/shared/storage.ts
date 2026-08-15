@@ -1,10 +1,12 @@
-import { DEFAULT_SETTINGS, SESSION_KEYS, STORAGE_KEYS } from "./defaults";
+import { normalizeSettings, SESSION_KEYS, STORAGE_KEYS } from "./defaults";
 import type { ActivityEntry, AuthThrottle, CategoryOverrides, CategoryRejections, PasswordRecord, ProtectedDomains, RetentionRule, ScanResult, Settings } from "./types";
 
 async function getLocal<T>(key: string, fallback: T): Promise<T> {
   const result = await chrome.storage.local.get(key);
   return (result[key] as T | undefined) ?? fallback;
 }
+
+let activityWriteQueue: Promise<void> = Promise.resolve();
 
 export const storage = {
   getRules: () => getLocal<RetentionRule[]>(STORAGE_KEYS.rules, []),
@@ -18,13 +20,17 @@ export const storage = {
   getDefaultCategoryRulesVersion: () => getLocal<number>(STORAGE_KEYS.defaultCategoryRulesVersion, 0),
   setDefaultCategoryRulesVersion: (version: number) => chrome.storage.local.set({ [STORAGE_KEYS.defaultCategoryRulesVersion]: version }),
   async getSettings(): Promise<Settings> {
-    return { ...DEFAULT_SETTINGS, ...(await getLocal<Partial<Settings>>(STORAGE_KEYS.settings, {})) };
+    return normalizeSettings(await getLocal<Partial<Settings>>(STORAGE_KEYS.settings, {}));
   },
-  setSettings: (settings: Settings) => chrome.storage.local.set({ [STORAGE_KEYS.settings]: settings }),
+  setSettings: (settings: Settings) => chrome.storage.local.set({ [STORAGE_KEYS.settings]: normalizeSettings(settings) }),
   getActivity: () => getLocal<ActivityEntry[]>(STORAGE_KEYS.activity, []),
-  async addActivity(entry: ActivityEntry, maxEntries: number): Promise<void> {
-    const current = await this.getActivity();
-    await chrome.storage.local.set({ [STORAGE_KEYS.activity]: [entry, ...current].slice(0, maxEntries) });
+  addActivity(entry: ActivityEntry, maxEntries: number): Promise<void> {
+    const limit = Math.min(5_000, Math.max(10, Math.round(maxEntries) || 250));
+    activityWriteQueue = activityWriteQueue.catch(() => undefined).then(async () => {
+      const current = await this.getActivity();
+      await chrome.storage.local.set({ [STORAGE_KEYS.activity]: [entry, ...current].slice(0, limit) });
+    });
+    return activityWriteQueue;
   },
   clearActivity: () => chrome.storage.local.set({ [STORAGE_KEYS.activity]: [] }),
   getLastScan: () => getLocal<ScanResult | null>(STORAGE_KEYS.lastScan, null),
@@ -48,7 +54,7 @@ export const storage = {
       .map(({ id, timestamp, type, message, count }) => ({ id, timestamp, type, message, ...(count ? { count } : {}) }));
     if (legacyDeleted.length) sanitized.unshift({
       id: crypto.randomUUID(), timestamp: Date.now(), type: "deleted", count: legacyDeleted.length,
-      message: `${legacyDeleted.length} site${legacyDeleted.length === 1 ? "" : "s"} removed · legacy URL details cleared`,
+      message: `${legacyDeleted.length} history URL${legacyDeleted.length === 1 ? "" : "s"} removed · legacy URL details cleared`,
     });
     const lastScan = await this.getLastScan();
     await chrome.storage.local.set({

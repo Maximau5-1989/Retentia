@@ -42,6 +42,8 @@ export function PasswordModal({ mode, onSuccess, onCancel, onReset }: PasswordMo
         }
       }
       setPassword(""); setConfirmPassword(""); onSuccess();
+    } catch {
+      setError(mode === "setup" ? "Retentia could not create the password. Try again." : "Retentia could not verify the password. Try again.");
     } finally { setBusy(false); }
   }
 

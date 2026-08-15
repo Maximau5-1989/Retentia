@@ -2,7 +2,7 @@
 
 ## 2.0.0 — 2026-08-15
 
-- Refined the dashboard and popup with clearer navigation, responsive layouts, searchable and collapsible category results, collapsible rule forms, richer protection status, improved settings spacing, palette-aligned review panels, consistent notifications, and improved keyboard and screen-reader accessibility. New rules now focus on complete domains and specific URLs, while existing wildcard and regular-expression rules remain supported as legacy advanced rules. A fresh installation opens Overview once, while updates and later Chrome startups do not. Dashboard shortcuts now reuse one existing Retentia tab.
+- Refined the dashboard and popup with clearer navigation, responsive layouts, searchable and collapsible category results, collapsible rule forms, richer protection status, improved settings spacing, palette-aligned review panels, consistent notifications, and improved keyboard and screen-reader accessibility. New rules now focus on complete domains and specific URLs, while existing wildcard and regular-expression rules remain supported as legacy advanced rules. Hardened rule input normalization, settings bounds, concurrent activity writes, password error handling, scan-limit disclosure, popup session locking, and single-tab navigation. A fresh installation opens Overview once, while updates and later Chrome startups do not.
 
 ## 1.9.1 — 2026-08-15
 

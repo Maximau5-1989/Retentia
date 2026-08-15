@@ -5,6 +5,7 @@ import { ThemeButton } from "../components/ThemeButton";
 import { sessionStorage, storage } from "../shared/storage";
 import { deleteHistoryMatchingRule } from "../retention/engine";
 import { CATEGORY_PRESETS, getCategoryPreset, suggestCategory } from "../shared/categories";
+import { findDashboardTab, openDashboardTab } from "../shared/dashboard-tabs";
 import type { CategoryId, RetentionRule, ScanResult, Settings, TimeUnit } from "../shared/types";
 import "../styles.css";
 
@@ -24,14 +25,17 @@ function Popup() {
   const [category, setCategory] = useState<CategoryId>();
 
   useEffect(() => {
-    void Promise.all([chrome.tabs.query({ active: true, currentWindow: true }), storage.getSettings(), storage.getPassword(), sessionStorage.isUnlocked(), storage.getRules(), storage.getLastScan()]).then(([tabs, value, password, unlocked, loadedRules, loadedScan]) => {
+    void (async () => {
+      const [tabs, value, password, unlocked, loadedRules, loadedScan] = await Promise.all([chrome.tabs.query({ active: true, currentWindow: true }), storage.getSettings(), storage.getPassword(), sessionStorage.isUnlocked(), storage.getRules(), storage.getLastScan()]);
+      const dashboardSessionActive = unlocked && Boolean(await findDashboardTab());
+      if (unlocked && !dashboardSessionActive) await sessionStorage.lock();
       const activeTab = tabs[0];
-      setTab(activeTab); setSettings(value); setRules(loadedRules); setLastScan(loadedScan); setPasswordReady(Boolean(password)); setAppUnlocked(Boolean(value.testingBypassPassword) || unlocked);
+      setTab(activeTab); setSettings(value); setRules(loadedRules); setLastScan(loadedScan); setPasswordReady(Boolean(password)); setAppUnlocked(Boolean(value.testingBypassPassword) || dashboardSessionActive);
       if (activeTab?.url) {
         const preset = suggestCategory(activeTab.url, activeTab.title);
         if (preset) { setCategory(preset.id); setDuration(preset.duration); setUnit(preset.unit); setDeleteImmediately(preset.deleteImmediately ?? false); }
       }
-    });
+    })();
   }, []);
 
   useEffect(() => {
@@ -89,30 +93,8 @@ function Popup() {
   }
 
   async function openDashboard(view?: "overview" | "rules" | "categories") {
-    const dashboardUrl = chrome.runtime.getURL("dashboard.html");
-    const targetUrl = `${dashboardUrl}?view=${view ?? "overview"}`;
-    const registeredTabId = await sessionStorage.getDashboardTabId();
-    let dashboardTab: chrome.tabs.Tab | undefined;
-
-    if (registeredTabId !== undefined) {
-      try {
-        const registeredTab = await chrome.tabs.get(registeredTabId);
-        if (registeredTab.url?.startsWith(dashboardUrl)) dashboardTab = registeredTab;
-      } catch {
-        // The previously registered dashboard tab has already been closed.
-      }
-    }
-
-    if (!dashboardTab) {
-      const tabs = await chrome.tabs.query({});
-      dashboardTab = tabs.find((candidate) => candidate.url?.startsWith(dashboardUrl));
-    }
-
-    if (dashboardTab?.id !== undefined) {
-      await chrome.tabs.update(dashboardTab.id, { url: targetUrl, active: true });
-    } else {
-      await chrome.tabs.create({ url: targetUrl });
-    }
+    await sessionStorage.unlock();
+    await openDashboardTab({ view: view ?? "overview" });
     window.close();
   }
 
@@ -145,8 +127,8 @@ function Popup() {
     </section>
     <nav aria-label="Dashboard shortcuts" className="mt-3 grid grid-cols-3 gap-2"><button className="btn-secondary !px-2 text-xs" onClick={() => void openDashboard("overview")}>Overview</button><button className="btn-secondary !px-2 text-xs" onClick={() => void openDashboard("rules")}>Rules</button><button className="btn-secondary !px-2 text-xs" onClick={() => void openDashboard("categories")}>Categories</button></nav>
     <p className="muted mb-0 mt-3 text-center text-[10px]">Processed locally. Nothing leaves your browser.</p>
-    {passwordReady === false && <PasswordModal mode="setup" onSuccess={() => { setPasswordReady(true); void sessionStorage.unlock().then(() => setAppUnlocked(true)); }} />}
-    {passwordReady === true && appUnlocked === false && <PasswordModal mode="unlock" onSuccess={() => { void sessionStorage.unlock().then(() => setAppUnlocked(true)); }} />}
+    {passwordReady === false && <PasswordModal mode="setup" onSuccess={() => { setPasswordReady(true); setAppUnlocked(true); }} />}
+    {passwordReady === true && appUnlocked === false && <PasswordModal mode="unlock" onSuccess={() => setAppUnlocked(true)} />}
   </main>;
 }
 

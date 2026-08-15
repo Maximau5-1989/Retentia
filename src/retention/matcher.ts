@@ -1,7 +1,7 @@
 import type { RetentionRule } from "../shared/types";
 import type { CategoryOverrides } from "../shared/types";
 import { resolveCategory } from "../shared/categories";
-import { matchesManualTarget } from "./manual-targets";
+import { matchesManualTarget, normalizeDomain } from "./manual-targets";
 
 export type RuleMatchInput = string | { url: string; title?: string };
 
@@ -20,8 +20,8 @@ export function matchesRule(candidate: RuleMatchInput, rule: RetentionRule, cate
       case "exact":
         return url === rule.pattern;
       case "domain": {
-        const hostname = new URL(url).hostname.toLowerCase();
-        const domain = rule.pattern.toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+        const hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+        const domain = normalizeDomain(rule.pattern);
         return hostname === domain || hostname.endsWith(`.${domain}`);
       }
       case "category":

@@ -7,6 +7,7 @@ const rule = (overrides: Partial<RetentionRule>): RetentionRule => ({ id: "1", n
 describe("rule matcher", () => {
   it("matches domains and subdomains without matching impostors", () => {
     expect(matchesRule("https://news.example.com/a", rule({}))).toBe(true);
+    expect(matchesRule("https://example.com/a", rule({ pattern: "www.example.com" }))).toBe(true);
     expect(matchesRule("https://notexample.com/a", rule({}))).toBe(false);
   });
   it("supports exact URLs, wildcards and regex", () => {

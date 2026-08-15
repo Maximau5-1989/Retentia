@@ -1,4 +1,4 @@
-import type { RetentionRule } from "../shared/types";
+import type { RetentionRule, RuleKind } from "../shared/types";
 
 export type ManualTargetKind = "url" | "domain";
 
@@ -35,10 +35,25 @@ export function normalizeDomain(input: string): string {
   try {
     const parsed = new URL(/^https?:\/\//i.test(candidate) ? normalizeHttpUrl(candidate) : `https://${candidate}`);
     if (!parsed.hostname) throw new Error();
-    return parsed.hostname.toLowerCase().replace(/\.$/, "");
+    return parsed.hostname.toLowerCase().replace(/\.$/, "").replace(/^www\./, "");
   } catch {
     throw new Error("Enter a valid domain, such as example.com");
   }
+}
+
+export function normalizeRulePattern(kind: RuleKind, input: string): string {
+  if (kind === "domain") return normalizeDomain(input);
+  if (kind === "exact") return normalizeHttpUrl(input);
+  const pattern = input.trim();
+  if (!pattern) throw new Error("Enter a match pattern");
+  if (kind === "regex") {
+    try {
+      new RegExp(pattern, "i");
+    } catch {
+      throw new Error("This legacy regular expression is invalid");
+    }
+  }
+  return pattern;
 }
 
 export function addManualTarget(rule: RetentionRule, kind: ManualTargetKind, input: string): ManualTargetUpdate {
@@ -62,8 +77,11 @@ export function matchesManualTarget(url: string, rule: RetentionRule): boolean {
   try {
     const normalizedUrl = normalizeHttpUrl(url);
     if (rule.additionalUrls?.includes(normalizedUrl)) return true;
-    const hostname = new URL(normalizedUrl).hostname.toLowerCase();
-    return rule.additionalDomains?.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`)) ?? false;
+    const hostname = new URL(normalizedUrl).hostname.toLowerCase().replace(/^www\./, "");
+    return rule.additionalDomains?.some((storedDomain) => {
+      const domain = storedDomain.toLowerCase().replace(/^www\./, "");
+      return hostname === domain || hostname.endsWith(`.${domain}`);
+    }) ?? false;
   } catch {
     return false;
   }

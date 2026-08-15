@@ -65,6 +65,7 @@ export interface ScanResult {
   deleted: number;
   candidates: HistoryCandidate[];
   runAt: number;
+  resultLimitReached?: boolean;
 }
 
 export interface CategoryScanBucket {

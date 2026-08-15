@@ -89,8 +89,30 @@ function Popup() {
   }
 
   async function openDashboard(view?: "overview" | "rules" | "categories") {
-    if (!view || view === "overview") await chrome.runtime.openOptionsPage();
-    else await chrome.tabs.create({ url: chrome.runtime.getURL(`dashboard.html?view=${view}`) });
+    const dashboardUrl = chrome.runtime.getURL("dashboard.html");
+    const targetUrl = `${dashboardUrl}?view=${view ?? "overview"}`;
+    const registeredTabId = await sessionStorage.getDashboardTabId();
+    let dashboardTab: chrome.tabs.Tab | undefined;
+
+    if (registeredTabId !== undefined) {
+      try {
+        const registeredTab = await chrome.tabs.get(registeredTabId);
+        if (registeredTab.url?.startsWith(dashboardUrl)) dashboardTab = registeredTab;
+      } catch {
+        // The previously registered dashboard tab has already been closed.
+      }
+    }
+
+    if (!dashboardTab) {
+      const tabs = await chrome.tabs.query({});
+      dashboardTab = tabs.find((candidate) => candidate.url?.startsWith(dashboardUrl));
+    }
+
+    if (dashboardTab?.id !== undefined) {
+      await chrome.tabs.update(dashboardTab.id, { url: targetUrl, active: true });
+    } else {
+      await chrome.tabs.create({ url: targetUrl });
+    }
     window.close();
   }
 

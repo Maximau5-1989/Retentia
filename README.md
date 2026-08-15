@@ -21,8 +21,8 @@ Define how long your browser history should exist. Create retention policies for
 - **Protected websites** always override retention rules and category cleanup, including for subdomains.
 - Category presets can be activated, paused, and cleaned independently.
 - The optional **18+** category uses a transparent local domain list, is disabled by default, and suggests immediate history removal.
-- The local classification engine combines known domains, subdomains, URL structure, and Chrome's stored page title. It never opens websites or reads page content.
-- Only high-confidence classifications can match an automatic category rule. Medium-confidence results remain uncategorized and are shown as possible matches for manual review.
+- The local classification engine combines an expanded set of known domains, subdomains, URL structure, and Chrome's stored page title. It never opens websites or reads page content.
+- Automatic category matches require high-confidence evidence from multiple independent signals. Ambiguous and medium-confidence results remain uncategorized and are shown as possible matches for manual review.
 - Possible category matches appear in dedicated review panels where a domain can be confirmed before category rules may use it.
 - Rules automatically receives one disabled default rule for every built-in category without duplicating existing category rules.
 - Rules can remove matching URLs immediately after a visit or after a configurable retention period.

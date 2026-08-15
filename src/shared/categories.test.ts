@@ -47,6 +47,29 @@ describe("local category classifier", () => {
   it("does not classify weak or misleading text", () => {
     expect(suggestCategory("https://example.com/products")).toBeUndefined();
     expect(classifyCategory("https://sussex.example/about", "University information").category).toBeUndefined();
+    expect(classifyCategory("https://socialsecurity.example/account", "Government services")).toMatchObject({ confidence: "none" });
+  });
+
+  it("requires independent signal sources before automatic classification", () => {
+    expect(classifyCategory("https://example.com/", "Breaking news - latest news - news article")).toMatchObject({
+      suggestedCategory: "news",
+      confidence: "medium",
+      source: "signals",
+    });
+  });
+
+  it("does not suggest a category when different categories score equally", () => {
+    expect(classifyCategory("https://example.com/shop/hotel", "Shopping and travel deals")).toMatchObject({
+      confidence: "none",
+      source: "none",
+    });
+  });
+
+  it("recognizes additional common Dutch and international services", () => {
+    expect(suggestCategory("https://marktplaats.nl/l/example")?.id).toBe("shopping");
+    expect(suggestCategory("https://threads.net/@example")?.id).toBe("social");
+    expect(suggestCategory("https://videoland.com/series/example")?.id).toBe("streaming");
+    expect(suggestCategory("https://transavia.com/flight/example")?.id).toBe("travel");
   });
 
   it("normalizes URLs without returning path or query content", () => {

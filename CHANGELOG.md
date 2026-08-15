@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.0 — 2026-08-15
+
+- Expanded category coverage and made local classification stricter for ambiguous or single-source signals.
+
 ## 1.7.1 — 2026-08-08
 
 - Fix public privacy policy URL and documentation links.

@@ -9,6 +9,11 @@ interface ClassificationSignals {
   highConfidenceScore?: number;
 }
 
+interface SignalScore {
+  score: number;
+  sourceCount: number;
+}
+
 export interface CategoryPreset {
   id: CategoryId;
   label: string;
@@ -35,11 +40,11 @@ export const CATEGORY_PRESETS: readonly CategoryPreset[] = [
     description: "Social networks, communities, and public profiles.",
     duration: 7,
     unit: "days",
-    domains: ["facebook.com", "instagram.com", "linkedin.com", "reddit.com", "tiktok.com", "x.com"],
+    domains: ["bsky.app", "facebook.com", "instagram.com", "linkedin.com", "mastodon.social", "pinterest.com", "reddit.com", "snapchat.com", "threads.net", "tiktok.com", "x.com"],
     signals: {
       hostKeywords: ["social", "community", "forum"],
-      urlKeywords: ["community", "profile", "members", "forum"],
-      titleKeywords: ["social network", "online community", "member profile"],
+      urlKeywords: ["community", "profile", "members", "forum", "profiel", "leden"],
+      titleKeywords: ["social network", "online community", "member profile", "online gemeenschap", "ledenprofiel"],
     },
   },
   {
@@ -48,11 +53,11 @@ export const CATEGORY_PRESETS: readonly CategoryPreset[] = [
     description: "Product browsing and online marketplaces.",
     duration: 14,
     unit: "days",
-    domains: ["aliexpress.com", "amazon.com", "amazon.nl", "bol.com", "coolblue.nl", "ebay.com", "temu.com"],
+    domains: ["aliexpress.com", "amazon.com", "amazon.nl", "bol.com", "coolblue.nl", "ebay.com", "etsy.com", "marktplaats.nl", "mediamarkt.nl", "temu.com", "wehkamp.nl", "zalando.nl"],
     signals: {
       hostKeywords: ["shop", "store", "marketplace", "webshop"],
-      urlKeywords: ["product", "products", "cart", "checkout", "shop", "store"],
-      titleKeywords: ["shopping", "webshop", "online store", "shopping cart", "checkout"],
+      urlKeywords: ["product", "products", "cart", "checkout", "shop", "store", "winkelwagen", "afrekenen", "bestellen"],
+      titleKeywords: ["shopping", "webshop", "online store", "shopping cart", "checkout", "online winkel", "winkelwagen", "afrekenen"],
     },
   },
   {
@@ -61,11 +66,11 @@ export const CATEGORY_PRESETS: readonly CategoryPreset[] = [
     description: "News articles and current-affairs websites.",
     duration: 30,
     unit: "days",
-    domains: ["bbc.com", "cnn.com", "nos.nl", "nrc.nl", "nu.nl", "telegraaf.nl", "volkskrant.nl"],
+    domains: ["ad.nl", "bbc.com", "bnr.nl", "cnn.com", "fd.nl", "nos.nl", "nrc.nl", "nu.nl", "parool.nl", "rtl.nl", "telegraaf.nl", "trouw.nl", "volkskrant.nl"],
     signals: {
       hostKeywords: ["news", "nieuws", "daily", "times"],
-      urlKeywords: ["news", "nieuws", "article", "breaking"],
-      titleKeywords: ["breaking news", "latest news", "nieuws", "news article"],
+      urlKeywords: ["news", "nieuws", "article", "artikel", "breaking", "binnenland", "buitenland"],
+      titleKeywords: ["breaking news", "latest news", "nieuws", "news article", "nieuwsartikel", "binnenlands nieuws", "buitenlands nieuws"],
     },
   },
   {
@@ -74,11 +79,11 @@ export const CATEGORY_PRESETS: readonly CategoryPreset[] = [
     description: "Video, music, podcast, and livestream platforms.",
     duration: 30,
     unit: "days",
-    domains: ["disneyplus.com", "netflix.com", "primevideo.com", "spotify.com", "twitch.tv", "youtube.com"],
+    domains: ["deezer.com", "disneyplus.com", "netflix.com", "primevideo.com", "soundcloud.com", "spotify.com", "twitch.tv", "videoland.com", "vimeo.com", "youtube.com"],
     signals: {
       hostKeywords: ["stream", "video", "music", "podcast"],
-      urlKeywords: ["watch", "video", "videos", "stream", "playlist", "podcast"],
-      titleKeywords: ["watch online", "streaming", "livestream", "podcast", "music video"],
+      urlKeywords: ["watch", "video", "videos", "stream", "playlist", "podcast", "kijken", "luisteren", "aflevering"],
+      titleKeywords: ["watch online", "streaming", "livestream", "podcast", "music video", "online kijken", "online luisteren"],
     },
   },
   {
@@ -87,11 +92,11 @@ export const CATEGORY_PRESETS: readonly CategoryPreset[] = [
     description: "Search result pages that can contain sensitive queries.",
     duration: 1,
     unit: "days",
-    domains: ["bing.com", "duckduckgo.com", "ecosia.org", "google.com", "google.nl", "search.brave.com"],
+    domains: ["bing.com", "duckduckgo.com", "ecosia.org", "google.com", "google.nl", "qwant.com", "search.brave.com", "startpage.com"],
     signals: {
       hostKeywords: ["search"],
-      urlKeywords: ["search", "query", "results"],
-      titleKeywords: ["search results", "zoekresultaten", "search engine"],
+      urlKeywords: ["search", "query", "results", "zoeken", "zoek"],
+      titleKeywords: ["search results", "zoekresultaten", "search engine", "zoekmachine"],
     },
   },
   {
@@ -100,11 +105,11 @@ export const CATEGORY_PRESETS: readonly CategoryPreset[] = [
     description: "Transport, accommodation, and trip comparison websites.",
     duration: 30,
     unit: "days",
-    domains: ["9292.nl", "airbnb.com", "booking.com", "ns.nl", "skyscanner.com", "tripadvisor.com"],
+    domains: ["9292.nl", "airbnb.com", "booking.com", "expedia.com", "kayak.com", "klm.nl", "ns.nl", "ryanair.com", "skyscanner.com", "transavia.com", "tripadvisor.com"],
     signals: {
       hostKeywords: ["travel", "trips", "hotel", "flights"],
-      urlKeywords: ["flight", "flights", "hotel", "hotels", "accommodation", "booking"],
-      titleKeywords: ["book a flight", "hotel deals", "travel deals", "accommodation"],
+      urlKeywords: ["flight", "flights", "hotel", "hotels", "accommodation", "booking", "vlucht", "vluchten", "reis", "reizen"],
+      titleKeywords: ["book a flight", "hotel deals", "travel deals", "accommodation", "vlucht boeken", "hotel boeken", "reis boeken"],
     },
   },
   {
@@ -113,11 +118,11 @@ export const CATEGORY_PRESETS: readonly CategoryPreset[] = [
     description: "Games, entertainment databases, guides, and fan communities.",
     duration: 30,
     unit: "days",
-    domains: ["fandom.com", "ign.com", "imdb.com", "playstation.com", "steamcommunity.com", "steampowered.com", "xbox.com"],
+    domains: ["ea.com", "epicgames.com", "fandom.com", "gog.com", "ign.com", "imdb.com", "nintendo.com", "playstation.com", "steamcommunity.com", "steampowered.com", "xbox.com"],
     signals: {
       hostKeywords: ["gaming", "games", "game"],
-      urlKeywords: ["game", "games", "gaming", "movies", "entertainment"],
-      titleKeywords: ["gaming", "video game", "movie database", "entertainment"],
+      urlKeywords: ["game", "games", "gaming", "movies", "entertainment", "film", "films"],
+      titleKeywords: ["gaming", "video game", "movie database", "entertainment", "computerspel", "film database"],
     },
   },
   {
@@ -129,9 +134,9 @@ export const CATEGORY_PRESETS: readonly CategoryPreset[] = [
     deleteImmediately: true,
     domains: ["chaturbate.com", "onlyfans.com", "pornhub.com", "redtube.com", "xhamster.com", "xnxx.com", "xvideos.com", "youporn.com"],
     signals: {
-      hostKeywords: ["adult", "porn", "porno", "pornhub", "redtube", "xhamster", "xnxx", "xvideos", "youporn", "chaturbate", "xxx", "nsfw", "hentai", "sexcam"],
-      urlKeywords: ["adult", "porn", "porno", "xxx", "nsfw", "nude", "nudes", "hentai", "sex", "erotic"],
-      titleKeywords: ["adult", "porn", "porno", "xxx", "nsfw", "nude", "hentai", "sex video", "erotic", "18+", "video", "videos"],
+      hostKeywords: ["adult", "porn", "porno", "pornhub", "redtube", "xhamster", "xnxx", "xvideos", "youporn", "chaturbate", "xxx", "nsfw", "hentai", "sexcam", "erotiek"],
+      urlKeywords: ["adult", "porn", "porno", "xxx", "nsfw", "nude", "nudes", "hentai", "sex", "seks", "erotic", "erotiek", "naakt"],
+      titleKeywords: ["adult", "porn", "porno", "xxx", "nsfw", "nude", "hentai", "sex video", "seks video", "erotic", "erotiek", "naakt", "18+", "video", "videos"],
       highConfidenceScore: 50,
     },
   },
@@ -140,6 +145,7 @@ export const CATEGORY_PRESETS: readonly CategoryPreset[] = [
 const MEDIUM_CONFIDENCE_SCORE = 35;
 const DEFAULT_HIGH_CONFIDENCE_SCORE = 60;
 const HIGH_CONFIDENCE_MARGIN = 15;
+const MEDIUM_CONFIDENCE_MARGIN = 10;
 
 export function getCategoryPreset(id?: CategoryId): CategoryPreset | undefined {
   return CATEGORY_PRESETS.find((preset) => preset.id === id);
@@ -162,16 +168,17 @@ export function classifyCategory(input: string, title = "", overrides: CategoryO
 
   const urlText = `${parsed.pathname} ${parsed.search}`;
   const scores = CATEGORY_PRESETS
-    .map((preset) => ({ preset, score: scoreSignals(hostname, urlText, title, preset.signals) }))
-    .sort((a, b) => b.score - a.score);
+    .map((preset) => ({ preset, ...scoreSignals(hostname, urlText, title, preset.signals) }))
+    .sort((a, b) => b.score - a.score || b.sourceCount - a.sourceCount);
   const winner = scores[0];
   const runnerUp = scores[1]?.score ?? 0;
   if (!winner || winner.score < MEDIUM_CONFIDENCE_SCORE) return { confidence: "none", score: winner?.score ?? 0, source: "none" };
 
   const highThreshold = winner.preset.signals.highConfidenceScore ?? DEFAULT_HIGH_CONFIDENCE_SCORE;
-  if (winner.score >= highThreshold && winner.score - runnerUp >= HIGH_CONFIDENCE_MARGIN) {
+  if (winner.score >= highThreshold && winner.score - runnerUp >= HIGH_CONFIDENCE_MARGIN && winner.sourceCount >= 2) {
     return { category: winner.preset.id, confidence: "high", score: winner.score, source: "signals" };
   }
+  if (winner.score - runnerUp < MEDIUM_CONFIDENCE_MARGIN) return { confidence: "none", score: winner.score, source: "none" };
   return { suggestedCategory: winner.preset.id, confidence: "medium", score: winner.score, source: "signals" };
 }
 
@@ -247,23 +254,24 @@ function findOverride(hostname: string, overrides: CategoryOverrides): CategoryI
     .find(([domain]) => hostname === domain || hostname.endsWith(`.${domain}`))?.[1];
 }
 
-function scoreSignals(hostname: string, urlText: string, title: string, signals: ClassificationSignals): number {
-  const hostHits = countMatches(hostname, signals.hostKeywords, true);
+function scoreSignals(hostname: string, urlText: string, title: string, signals: ClassificationSignals): SignalScore {
+  const hostHits = countMatches(hostname, signals.hostKeywords);
   const urlHits = countMatches(urlText, signals.urlKeywords);
   const titleHits = countMatches(title, signals.titleKeywords);
-  return Math.min(80, hostHits * 60) + Math.min(50, urlHits * 25) + Math.min(60, titleHits * 20);
+  return {
+    score: Math.min(80, hostHits * 60) + Math.min(50, urlHits * 25) + Math.min(60, titleHits * 20),
+    sourceCount: Number(hostHits > 0) + Number(urlHits > 0) + Number(titleHits > 0),
+  };
 }
 
-function countMatches(input: string, keywords: readonly string[], allowCompactMatch = false): number {
+function countMatches(input: string, keywords: readonly string[]): number {
   const normalized = normalizeText(input);
   const tokens = new Set(normalized.split(" ").filter(Boolean));
-  const compact = normalized.replaceAll(" ", "");
   return keywords.filter((keyword) => {
     const normalizedKeyword = normalizeText(keyword);
     if (!normalizedKeyword) return false;
     if (normalizedKeyword.includes(" ")) return ` ${normalized} `.includes(` ${normalizedKeyword} `);
-    if (tokens.has(normalizedKeyword)) return true;
-    return allowCompactMatch && normalizedKeyword.length >= 5 && compact.includes(normalizedKeyword.replaceAll(" ", ""));
+    return tokens.has(normalizedKeyword);
   }).length;
 }
 

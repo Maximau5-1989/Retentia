@@ -425,13 +425,12 @@ function Dashboard() {
       <div className="mb-8 flex items-center gap-3"><img src="/icons/icon-48.png" alt="" className="h-11 w-11" /><div className="min-w-0"><h1 className="m-0 text-xl font-black">Retentia</h1><div className="mt-1 flex items-center gap-2"><span className="pill">v{extensionVersion}</span><button type="button" className="border-0 bg-transparent p-0 text-[11px] font-bold text-[#4d8b2c] underline-offset-2 hover:underline dark:text-[#a8e77d]" onClick={() => selectView("changelog")}>View what's new</button></div></div></div>
       <nav aria-label="Dashboard sections" className="space-y-1">{DASHBOARD_VIEWS.map(({ id, label }) => <button type="button" key={id} onClick={() => selectView(id)} aria-current={view === id ? "page" : undefined} className={`w-full rounded-xl border-0 px-4 py-3 text-left font-bold ${view === id ? 'bg-[#18283d] text-white dark:bg-[#82c950] dark:text-[#102017]' : 'bg-transparent text-[#526071] hover:bg-[#f0f4ed] dark:text-[#c4cfdb] dark:hover:bg-[#1a2838]'}`}>{label}</button>)}</nav>
       <div className="mt-auto space-y-3">
+        <div className="rounded-2xl bg-[#eef7e8] p-4 text-[#162235] dark:bg-[#203729] dark:text-[#e8eef5]"><p className="m-0 text-sm font-extrabold">Private by design</p><p className="mb-0 mt-1 text-xs text-[#5d6b7a] dark:text-[#b6c4d3]">Your rules and history stay on this device.</p></div>
         <section className="rounded-2xl border border-[#cfe3c4] bg-[#f4faef] p-4 text-[#162235] dark:border-[#365b39] dark:bg-[#193123] dark:text-[#e8eef5]">
-          <p className="m-0 text-[10px] font-extrabold uppercase tracking-[.14em] text-[#4d8b2c] dark:text-[#a8e77d]">Optional support</p>
-          <p className="mb-0 mt-2 text-sm font-extrabold">Enjoying Retentia?</p>
+          <p className="m-0 text-sm font-extrabold">Enjoying Retentia?</p>
           <p className="mb-0 mt-1 text-xs text-[#5d6b7a] dark:text-[#b6c4d3]">Support its continued development with an optional contribution.</p>
           <a className="mt-3 flex w-full items-center justify-center rounded-xl bg-[#18283d] px-3 py-2 text-xs font-extrabold text-white no-underline transition hover:bg-[#243a57] dark:bg-[#82c950] dark:text-[#102017] dark:hover:bg-[#96d76a]" href={SUPPORT_URL} target="_blank" rel="noreferrer" aria-label="Buy me a coffee via PayPal; opens in a new tab">Buy me a coffee</a>
         </section>
-        <div className="rounded-2xl bg-[#eef7e8] p-4 text-[#162235] dark:bg-[#203729] dark:text-[#e8eef5]"><p className="m-0 text-sm font-extrabold">Private by design</p><p className="mb-0 mt-1 text-xs text-[#5d6b7a] dark:text-[#b6c4d3]">Your rules and history stay on this device.</p></div>
       </div>
     </aside>
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#edf7e7,transparent_34%),#f5f7f3] p-4 dark:bg-[radial-gradient(circle_at_top_left,#193324,transparent_34%),#0c1420] sm:p-7 lg:ml-64 lg:p-12">

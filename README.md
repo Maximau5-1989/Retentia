@@ -15,7 +15,7 @@ Define how long your browser history should exist. Create retention policies for
 - Nested **Retentia** right-click menu on Chrome's history page with **Create new rule** and **Add to existing rule** actions
 - Light and dark themes
 - Password-protected Retentia interface
-- Optional user-initiated PayPal.Me support link in Settings; contributions never unlock functionality
+- Optional user-initiated PayPal.Me support link in the dashboard sidebar; contributions never unlock functionality
 
 ## Safety and configuration tools
 

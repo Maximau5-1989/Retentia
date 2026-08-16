@@ -1,5 +1,9 @@
 # Firefox changelog
 
+## 2.2.2 — 2026-08-16
+
+- Removed the What's new link beside the version number in the desktop and compact dashboard headers.
+
 ## 2.2.1 — 2026-08-16
 
 - Made the local history classifier handle Firefox history items whose title is `null`, added a Firefox-specific scan safety limit, and made scan failures visible instead of leaving the page without results.

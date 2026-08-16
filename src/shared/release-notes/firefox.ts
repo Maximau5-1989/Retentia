@@ -2,6 +2,14 @@ import type { ReleaseNotes } from "./types";
 
 export const FIREFOX_RELEASE_NOTES: readonly ReleaseNotes[] = [
   {
+    version: "2.2.2",
+    date: "2026-08-16",
+    title: "Cleaner dashboard header",
+    changes: [
+      "Removed the What's new link beside the version number in the desktop and compact dashboard headers.",
+    ],
+  },
+  {
     version: "2.2.1",
     date: "2026-08-16",
     title: "Reliable scans and independent releases",

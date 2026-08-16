@@ -1,5 +1,6 @@
 import { storage } from "./storage";
 import type { DiagnosticCode, DiagnosticEntry, DiagnosticSource } from "./types";
+import { webExtension } from "./web-extension";
 
 interface DiagnosticLocation {
   filename?: string;
@@ -56,7 +57,7 @@ export function createDiagnosticEntry(
     timestamp: Date.now(),
     source,
     code: safeDiagnosticCode(code),
-    appVersion: chrome.runtime.getManifest().version,
+    appVersion: webExtension.runtime.getManifest().version,
     ...(errorName ? { errorName } : {}),
     ...(file ? { file } : {}),
     ...(line ? { line } : {}),

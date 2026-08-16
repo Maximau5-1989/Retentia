@@ -4,7 +4,10 @@ import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
 const packagePath = resolve(root, "package.json");
-const manifestPath = resolve(root, "public", "manifest.json");
+const manifestPaths = {
+  chrome: resolve(root, "manifests", "chrome.json"),
+  firefox: resolve(root, "manifests", "firefox.json"),
+};
 const changelogPath = resolve(root, "CHANGELOG.md");
 const releaseDirectory = resolve(root, "release");
 const allowedBumps = new Set(["patch", "minor", "major"]);
@@ -25,19 +28,29 @@ if (notesIndex >= 0 && !notes) {
 }
 
 const packageJson = readJson(packagePath);
-const manifest = readJson(manifestPath);
+const manifests = Object.fromEntries(
+  Object.entries(manifestPaths).map(([browser, path]) => [browser, readJson(path)]),
+);
 
-if (packageJson.version !== manifest.version) {
-  fail(`Version mismatch: package.json is ${packageJson.version}, manifest.json is ${manifest.version}.`);
+for (const [browser, manifest] of Object.entries(manifests)) {
+  if (packageJson.version !== manifest.version) {
+    fail(`Version mismatch: package.json is ${packageJson.version}, ${browser}.json is ${manifest.version}.`);
+  }
 }
 
 const nextVersion = incrementVersion(packageJson.version, bump);
-const archivePath = resolve(releaseDirectory, `retentia-v${nextVersion}.zip`);
+const archivePaths = {
+  chrome: resolve(releaseDirectory, `retentia-chrome-v${nextVersion}.zip`),
+  firefox: resolve(releaseDirectory, `retentia-firefox-v${nextVersion}.zip`),
+  firefoxSources: resolve(releaseDirectory, `retentia-firefox-v${nextVersion}-sources.zip`),
+};
 const releaseNotes = notes || "Prepared the next Retentia release.";
 
 if (dryRun) {
   console.log(`Dry run: ${packageJson.version} -> ${nextVersion}`);
-  console.log(`Archive: ${archivePath}`);
+  console.log(`Chrome archive: ${archivePaths.chrome}`);
+  console.log(`Firefox archive: ${archivePaths.firefox}`);
+  console.log(`Firefox source archive: ${archivePaths.firefoxSources}`);
   console.log(`Git tag: v${nextVersion}`);
   console.log("No files were changed.");
   process.exit(0);
@@ -47,8 +60,10 @@ if (!notes) {
   fail('Provide release notes, for example: --notes "Added automated version management."');
 }
 
-if (existsSync(archivePath)) {
-  fail(`Release archive already exists: ${archivePath}`);
+for (const archivePath of Object.values(archivePaths)) {
+  if (existsSync(archivePath)) {
+    fail(`Release archive already exists: ${archivePath}`);
+  }
 }
 
 if (!noCommit) {
@@ -61,15 +76,17 @@ if (!noCommit) {
 
 const originals = new Map([
   [packagePath, readFileSync(packagePath, "utf8")],
-  [manifestPath, readFileSync(manifestPath, "utf8")],
+  ...Object.values(manifestPaths).map((path) => [path, readFileSync(path, "utf8")]),
   [changelogPath, readFileSync(changelogPath, "utf8")],
 ]);
 
 try {
   packageJson.version = nextVersion;
-  manifest.version = nextVersion;
   writeJson(packagePath, packageJson);
-  writeJson(manifestPath, manifest);
+  for (const [browser, manifest] of Object.entries(manifests)) {
+    manifest.version = nextVersion;
+    writeJson(manifestPaths[browser], manifest);
+  }
 
   const date = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Amsterdam",
@@ -84,7 +101,9 @@ try {
 
   runPackageScript("check");
   mkdirSync(releaseDirectory, { recursive: true });
-  createArchive(archivePath);
+  createArchive(archivePaths.chrome, "dist/chrome");
+  createArchive(archivePaths.firefox, "dist/firefox");
+  createSourceArchive(archivePaths.firefoxSources);
 
   if (!noCommit) {
     run("git", ["add", "-A"]);
@@ -93,14 +112,16 @@ try {
   }
 
   console.log(`Retentia v${nextVersion} is ready.`);
-  console.log(`Archive: ${archivePath}`);
+  console.log(`Chrome archive: ${archivePaths.chrome}`);
+  console.log(`Firefox archive: ${archivePaths.firefox}`);
+  console.log(`Firefox source archive: ${archivePaths.firefoxSources}`);
   console.log(noCommit ? "Git commit and tag were skipped." : `Created commit and tag v${nextVersion}.`);
 } catch (error) {
   for (const [path, contents] of originals) {
     writeFileSync(path, contents, "utf8");
   }
-  if (existsSync(archivePath)) {
-    rmSync(archivePath, { force: true });
+  for (const archivePath of Object.values(archivePaths)) {
+    if (existsSync(archivePath)) rmSync(archivePath, { force: true });
   }
   fail(`Release preparation failed and version files were restored.\n${error.message}`);
 }
@@ -122,12 +143,47 @@ function incrementVersion(version, type) {
   return `${major}.${minor}.${patch + 1}`;
 }
 
-function createArchive(destination) {
+function createArchive(destination, sourceDirectory) {
   if (process.platform !== "win32") {
     fail("ZIP creation currently requires Windows PowerShell.");
   }
+  const escapedSource = resolve(root, sourceDirectory, "*").replaceAll("'", "''");
   const escapedDestination = destination.replaceAll("'", "''");
-  const command = `Compress-Archive -Path 'dist\\*' -DestinationPath '${escapedDestination}' -CompressionLevel Optimal`;
+  const command = `Compress-Archive -Path '${escapedSource}' -DestinationPath '${escapedDestination}' -CompressionLevel Optimal`;
+  run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command]);
+}
+
+function createSourceArchive(destination) {
+  if (process.platform !== "win32") {
+    fail("ZIP creation currently requires Windows PowerShell.");
+  }
+  const sourceEntries = [
+    ".github",
+    "assets",
+    "docs",
+    "manifests",
+    "public",
+    "scripts",
+    "src",
+    "AGENTS.md",
+    "CHANGELOG.md",
+    "dashboard.html",
+    "FIREFOX_SUBMISSION.md",
+    "LICENSE",
+    "package.json",
+    "pnpm-lock.yaml",
+    "popup.html",
+    "PRIVACY.md",
+    "README.md",
+    "THIRD_PARTY_DATA.md",
+    "tsconfig.json",
+    "vite.config.ts",
+  ];
+  const escapedSources = sourceEntries
+    .map((entry) => `'${resolve(root, entry).replaceAll("'", "''")}'`)
+    .join(",");
+  const escapedDestination = destination.replaceAll("'", "''");
+  const command = `Compress-Archive -Path ${escapedSources} -DestinationPath '${escapedDestination}' -CompressionLevel Optimal`;
   run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command]);
 }
 

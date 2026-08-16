@@ -7,6 +7,16 @@ export interface ReleaseNotes {
 
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
   {
+    version: "2.2.0",
+    date: "2026-08-16",
+    title: "Firefox Desktop support",
+    changes: [
+      "Added a dedicated Firefox build with the same core retention, category, simulator, security, and privacy features.",
+      "Added browser-specific packaging so Chrome and Firefox each receive the correct background configuration and minimal permissions.",
+      "Kept Chrome's history-page shortcut unchanged; Firefox omits it because extensions cannot access Firefox's privileged History interface.",
+    ],
+  },
+  {
     version: "2.1.0",
     date: "2026-08-15",
     title: "Clearer, safer confirmations",

@@ -15,7 +15,7 @@ export function normalizeHttpUrl(input: string): string {
       const parsed = new URL(candidate);
       if (parsed.protocol === "http:" || parsed.protocol === "https:") return parsed.href;
     } catch {
-      // A Chrome History handoff can contain an encoded URL. Decode it below and try again.
+      // A browser History handoff can contain an encoded URL. Decode it below and try again.
     }
 
     try {

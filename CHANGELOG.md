@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.2.0 — 2026-08-16
+
+- Added a dedicated Firefox Desktop build while retaining the Chrome build from the same source. Firefox supports Retentia's popup, dashboard, retention rules, local category classifier, simulator, automatic cleanup, themes, password protection, backups, and privacy-safe diagnostics. Browser-specific manifests now use the correct background model and minimal permissions for each browser, and the release workflow creates and verifies separate Chrome and Firefox packages. Firefox's privileged History interface does not expose extension context menus, so the Chrome-only history-page shortcut is intentionally omitted there.
+
 ## 2.1.0 — 2026-08-15
 
 - Replaced Retentia's technical browser confirmation prompts with consistent light- and dark-mode dialogs for cleanup, rule deletion, category activation, backup restore, protection changes, log clearing, and security reset actions. Destructive dialogs now explain their exact scope, show relevant counts where available, focus Cancel by default, and support keyboard navigation and screen readers.

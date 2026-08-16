@@ -1,6 +1,7 @@
 import { storage } from "../shared/storage";
 import { categorizeHistoryEntries } from "../shared/categories";
 import type { CategoryScanResult, HistoryCandidate, RetentionRule, ScanResult } from "../shared/types";
+import { webExtension } from "../shared/web-extension";
 import { findWinningRule, getExpirationTime, matchesRule } from "./matcher";
 import { isProtectedUrl } from "./protection";
 
@@ -8,7 +9,7 @@ const AUTOMATIC_SCAN_LIMIT = 100_000;
 const MANUAL_SCAN_LIMIT = 1_000_000;
 
 export async function scanHistoryCategories(): Promise<CategoryScanResult> {
-  const [history, overrides, rejections] = await Promise.all([chrome.history.search({ text: "", startTime: 0, maxResults: MANUAL_SCAN_LIMIT }), storage.getCategoryOverrides(), storage.getCategoryRejections()]);
+  const [history, overrides, rejections] = await Promise.all([webExtension.history.search({ text: "", startTime: 0, maxResults: MANUAL_SCAN_LIMIT }), storage.getCategoryOverrides(), storage.getCategoryRejections()]);
   const buckets = categorizeHistoryEntries(history, overrides, rejections);
   const categorized = buckets.filter((bucket) => bucket.category).reduce((total, bucket) => total + bucket.urls, 0);
   const uncategorized = buckets.find((bucket) => !bucket.category)?.urls ?? 0;
@@ -24,10 +25,10 @@ export async function scanHistoryCategories(): Promise<CategoryScanResult> {
 
 export async function deleteHistoryMatchingRule(rule: RetentionRule): Promise<number> {
   const [settings, overrides, protectedDomains] = await Promise.all([storage.getSettings(), storage.getCategoryOverrides(), storage.getProtectedDomains()]);
-  const history = await chrome.history.search({ text: "", startTime: 0, maxResults: MANUAL_SCAN_LIMIT });
+  const history = await webExtension.history.search({ text: "", startTime: 0, maxResults: MANUAL_SCAN_LIMIT });
   const matchingUrls = [...new Set(history.flatMap((item) => item.url && !isProtectedUrl(item.url, protectedDomains) && matchesRule({ url: item.url, title: item.title }, rule, overrides) ? [item.url] : []))];
   for (const url of matchingUrls) {
-    await chrome.history.deleteUrl({ url });
+    await webExtension.history.deleteUrl({ url });
   }
   if (matchingUrls.length) await storage.addActivity({
     id: crypto.randomUUID(), timestamp: Date.now(), type: "deleted", count: matchingUrls.length,
@@ -39,7 +40,7 @@ export async function deleteHistoryMatchingRule(rule: RetentionRule): Promise<nu
 export async function scanHistory(deleteExpired = false, forceDelete = false): Promise<ScanResult> {
   const [rules, settings, overrides, protectedDomains] = await Promise.all([storage.getRules(), storage.getSettings(), storage.getCategoryOverrides(), storage.getProtectedDomains()]);
   const runAt = Date.now();
-  const history = await chrome.history.search({ text: "", startTime: runAt - settings.historyWindowDays * 86_400_000, maxResults: AUTOMATIC_SCAN_LIMIT });
+  const history = await webExtension.history.search({ text: "", startTime: runAt - settings.historyWindowDays * 86_400_000, maxResults: AUTOMATIC_SCAN_LIMIT });
   const candidates: HistoryCandidate[] = [];
 
   for (const item of history) {
@@ -62,7 +63,7 @@ export async function scanHistory(deleteExpired = false, forceDelete = false): P
   let deleted = 0;
   if (deleteExpired && (settings.enabled || forceDelete)) {
     for (const candidate of expired) {
-      await chrome.history.deleteUrl({ url: candidate.url });
+      await webExtension.history.deleteUrl({ url: candidate.url });
       deleted += 1;
     }
     if (deleted) await storage.addActivity({
@@ -83,12 +84,12 @@ export async function scanHistory(deleteExpired = false, forceDelete = false): P
 export async function cleanExpiredForRule(rule: RetentionRule): Promise<number> {
   const [settings, overrides, protectedDomains] = await Promise.all([storage.getSettings(), storage.getCategoryOverrides(), storage.getProtectedDomains()]);
   const now = Date.now();
-  const history = await chrome.history.search({ text: "", startTime: 0, maxResults: MANUAL_SCAN_LIMIT });
+  const history = await webExtension.history.search({ text: "", startTime: 0, maxResults: MANUAL_SCAN_LIMIT });
   const expiredUrls = [...new Set(history.flatMap((item) => {
     if (!item.url || !item.lastVisitTime || isProtectedUrl(item.url, protectedDomains) || !matchesRule({ url: item.url, title: item.title }, rule, overrides)) return [];
     return getExpirationTime(item.lastVisitTime, rule) <= now ? [item.url] : [];
   }))];
-  for (const url of expiredUrls) await chrome.history.deleteUrl({ url });
+  for (const url of expiredUrls) await webExtension.history.deleteUrl({ url });
   if (expiredUrls.length) await storage.addActivity({
     id: crypto.randomUUID(), timestamp: now, type: "deleted", count: expiredUrls.length,
     message: `${expiredUrls.length} history URL${expiredUrls.length === 1 ? "" : "s"} removed by a category rule`,
@@ -108,7 +109,7 @@ export async function deleteVisitedUrlImmediately(url: string, title = ""): Prom
   const rule = findWinningRule({ url, title }, rules, overrides);
   if (!rule?.deleteImmediately) return false;
 
-  await chrome.history.deleteUrl({ url });
+  await webExtension.history.deleteUrl({ url });
   await storage.addActivity({
     id: crypto.randomUUID(),
     timestamp: Date.now(),

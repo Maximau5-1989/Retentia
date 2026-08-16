@@ -1,8 +1,9 @@
 import { normalizeSettings, SESSION_KEYS, STORAGE_KEYS } from "./defaults";
 import type { ActivityEntry, AuthThrottle, CategoryOverrides, CategoryRejections, DiagnosticEntry, PasswordRecord, ProtectedDomains, RetentionRule, ScanResult, Settings } from "./types";
+import { webExtension } from "./web-extension";
 
 async function getLocal<T>(key: string, fallback: T): Promise<T> {
-  const result = await chrome.storage.local.get(key);
+  const result = await webExtension.storage.local.get(key);
   return (result[key] as T | undefined) ?? fallback;
 }
 
@@ -11,55 +12,55 @@ let diagnosticWriteQueue: Promise<void> = Promise.resolve();
 
 export const storage = {
   getRules: () => getLocal<RetentionRule[]>(STORAGE_KEYS.rules, []),
-  setRules: (rules: RetentionRule[]) => chrome.storage.local.set({ [STORAGE_KEYS.rules]: rules }),
+  setRules: (rules: RetentionRule[]) => webExtension.storage.local.set({ [STORAGE_KEYS.rules]: rules }),
   getCategoryOverrides: () => getLocal<CategoryOverrides>(STORAGE_KEYS.categoryOverrides, {}),
-  setCategoryOverrides: (overrides: CategoryOverrides) => chrome.storage.local.set({ [STORAGE_KEYS.categoryOverrides]: overrides }),
+  setCategoryOverrides: (overrides: CategoryOverrides) => webExtension.storage.local.set({ [STORAGE_KEYS.categoryOverrides]: overrides }),
   getCategoryRejections: () => getLocal<CategoryRejections>(STORAGE_KEYS.categoryRejections, {}),
-  setCategoryRejections: (rejections: CategoryRejections) => chrome.storage.local.set({ [STORAGE_KEYS.categoryRejections]: rejections }),
+  setCategoryRejections: (rejections: CategoryRejections) => webExtension.storage.local.set({ [STORAGE_KEYS.categoryRejections]: rejections }),
   getProtectedDomains: () => getLocal<ProtectedDomains>(STORAGE_KEYS.protectedDomains, []),
-  setProtectedDomains: (domains: ProtectedDomains) => chrome.storage.local.set({ [STORAGE_KEYS.protectedDomains]: domains }),
+  setProtectedDomains: (domains: ProtectedDomains) => webExtension.storage.local.set({ [STORAGE_KEYS.protectedDomains]: domains }),
   getDefaultCategoryRulesVersion: () => getLocal<number>(STORAGE_KEYS.defaultCategoryRulesVersion, 0),
-  setDefaultCategoryRulesVersion: (version: number) => chrome.storage.local.set({ [STORAGE_KEYS.defaultCategoryRulesVersion]: version }),
+  setDefaultCategoryRulesVersion: (version: number) => webExtension.storage.local.set({ [STORAGE_KEYS.defaultCategoryRulesVersion]: version }),
   async getPendingChangelogVersion(): Promise<string | null> {
     const version = await getLocal<unknown>(STORAGE_KEYS.pendingChangelogVersion, null);
     return typeof version === "string" && /^\d+\.\d+\.\d+$/.test(version) ? version : null;
   },
-  setPendingChangelogVersion: (version: string) => chrome.storage.local.set({ [STORAGE_KEYS.pendingChangelogVersion]: version }),
-  clearPendingChangelogVersion: () => chrome.storage.local.remove(STORAGE_KEYS.pendingChangelogVersion),
+  setPendingChangelogVersion: (version: string) => webExtension.storage.local.set({ [STORAGE_KEYS.pendingChangelogVersion]: version }),
+  clearPendingChangelogVersion: () => webExtension.storage.local.remove(STORAGE_KEYS.pendingChangelogVersion),
   async getSettings(): Promise<Settings> {
     return normalizeSettings(await getLocal<Partial<Settings>>(STORAGE_KEYS.settings, {}));
   },
-  setSettings: (settings: Settings) => chrome.storage.local.set({ [STORAGE_KEYS.settings]: normalizeSettings(settings) }),
+  setSettings: (settings: Settings) => webExtension.storage.local.set({ [STORAGE_KEYS.settings]: normalizeSettings(settings) }),
   getActivity: () => getLocal<ActivityEntry[]>(STORAGE_KEYS.activity, []),
   addActivity(entry: ActivityEntry, maxEntries: number): Promise<void> {
     const limit = Math.min(5_000, Math.max(10, Math.round(maxEntries) || 250));
     activityWriteQueue = activityWriteQueue.catch(() => undefined).then(async () => {
       const current = await this.getActivity();
-      await chrome.storage.local.set({ [STORAGE_KEYS.activity]: [entry, ...current].slice(0, limit) });
+      await webExtension.storage.local.set({ [STORAGE_KEYS.activity]: [entry, ...current].slice(0, limit) });
     });
     return activityWriteQueue;
   },
-  clearActivity: () => chrome.storage.local.set({ [STORAGE_KEYS.activity]: [] }),
+  clearActivity: () => webExtension.storage.local.set({ [STORAGE_KEYS.activity]: [] }),
   getDiagnostics: () => getLocal<DiagnosticEntry[]>(STORAGE_KEYS.diagnostics, []),
   addDiagnostic(entry: DiagnosticEntry): Promise<void> {
     diagnosticWriteQueue = diagnosticWriteQueue.catch(() => undefined).then(async () => {
       const current = await this.getDiagnostics();
-      await chrome.storage.local.set({ [STORAGE_KEYS.diagnostics]: [entry, ...current].slice(0, 50) });
+      await webExtension.storage.local.set({ [STORAGE_KEYS.diagnostics]: [entry, ...current].slice(0, 50) });
     });
     return diagnosticWriteQueue;
   },
-  clearDiagnostics: () => chrome.storage.local.set({ [STORAGE_KEYS.diagnostics]: [] }),
+  clearDiagnostics: () => webExtension.storage.local.set({ [STORAGE_KEYS.diagnostics]: [] }),
   getLastScan: () => getLocal<ScanResult | null>(STORAGE_KEYS.lastScan, null),
-  setLastScan: (result: ScanResult) => chrome.storage.local.set({ [STORAGE_KEYS.lastScan]: { ...result, candidates: [] } }),
+  setLastScan: (result: ScanResult) => webExtension.storage.local.set({ [STORAGE_KEYS.lastScan]: { ...result, candidates: [] } }),
   getPassword: () => getLocal<PasswordRecord | null>(STORAGE_KEYS.password, null),
-  setPassword: (password: PasswordRecord) => chrome.storage.local.set({ [STORAGE_KEYS.password]: password }),
-  removePassword: () => chrome.storage.local.remove(STORAGE_KEYS.password),
+  setPassword: (password: PasswordRecord) => webExtension.storage.local.set({ [STORAGE_KEYS.password]: password }),
+  removePassword: () => webExtension.storage.local.remove(STORAGE_KEYS.password),
   getAuthThrottle: () => getLocal<AuthThrottle>(STORAGE_KEYS.authThrottle, { failedAttempts: 0, lockUntil: 0 }),
-  setAuthThrottle: (throttle: AuthThrottle) => chrome.storage.local.set({ [STORAGE_KEYS.authThrottle]: throttle }),
-  resetAuthThrottle: () => chrome.storage.local.set({ [STORAGE_KEYS.authThrottle]: { failedAttempts: 0, lockUntil: 0 } }),
+  setAuthThrottle: (throttle: AuthThrottle) => webExtension.storage.local.set({ [STORAGE_KEYS.authThrottle]: throttle }),
+  resetAuthThrottle: () => webExtension.storage.local.set({ [STORAGE_KEYS.authThrottle]: { failedAttempts: 0, lockUntil: 0 } }),
   async resetProtectedData(): Promise<void> {
     const settings = await this.getSettings();
-    await chrome.storage.local.remove([STORAGE_KEYS.password, STORAGE_KEYS.rules, STORAGE_KEYS.activity, STORAGE_KEYS.diagnostics, STORAGE_KEYS.lastScan, STORAGE_KEYS.authThrottle, STORAGE_KEYS.categoryOverrides, STORAGE_KEYS.categoryRejections, STORAGE_KEYS.protectedDomains, STORAGE_KEYS.defaultCategoryRulesVersion]);
+    await webExtension.storage.local.remove([STORAGE_KEYS.password, STORAGE_KEYS.rules, STORAGE_KEYS.activity, STORAGE_KEYS.diagnostics, STORAGE_KEYS.lastScan, STORAGE_KEYS.authThrottle, STORAGE_KEYS.categoryOverrides, STORAGE_KEYS.categoryRejections, STORAGE_KEYS.protectedDomains, STORAGE_KEYS.defaultCategoryRulesVersion]);
     await this.setSettings({ ...settings, onboardingComplete: false });
   },
   async sanitizePrivacyData(): Promise<void> {
@@ -75,7 +76,7 @@ export const storage = {
       message: `${legacyDeleted.length} history URL${legacyDeleted.length === 1 ? "" : "s"} removed · legacy URL details cleared`,
     });
     const lastScan = await this.getLastScan();
-    await chrome.storage.local.set({
+    await webExtension.storage.local.set({
       [STORAGE_KEYS.activity]: sanitized,
       ...(lastScan ? { [STORAGE_KEYS.lastScan]: { ...lastScan, candidates: [] } } : {}),
       ...(hasLegacyPasswordBypass ? { [STORAGE_KEYS.settings]: normalizeSettings(rawSettings) } : {}),
@@ -85,16 +86,16 @@ export const storage = {
 
 export const sessionStorage = {
   async isUnlocked(): Promise<boolean> {
-    const result = await chrome.storage.session.get(SESSION_KEYS.unlocked);
+    const result = await webExtension.storage.session.get(SESSION_KEYS.unlocked);
     return result[SESSION_KEYS.unlocked] === true;
   },
-  unlock: () => chrome.storage.session.set({ [SESSION_KEYS.unlocked]: true }),
+  unlock: () => webExtension.storage.session.set({ [SESSION_KEYS.unlocked]: true }),
   async lock(): Promise<void> {
-    await chrome.storage.session.remove([SESSION_KEYS.unlocked, SESSION_KEYS.dashboardTabId]);
+    await webExtension.storage.session.remove([SESSION_KEYS.unlocked, SESSION_KEYS.dashboardTabId]);
   },
-  setDashboardTabId: (tabId: number) => chrome.storage.session.set({ [SESSION_KEYS.dashboardTabId]: tabId }),
+  setDashboardTabId: (tabId: number) => webExtension.storage.session.set({ [SESSION_KEYS.dashboardTabId]: tabId }),
   async getDashboardTabId(): Promise<number | undefined> {
-    const result = await chrome.storage.session.get(SESSION_KEYS.dashboardTabId);
+    const result = await webExtension.storage.session.get(SESSION_KEYS.dashboardTabId);
     return result[SESSION_KEYS.dashboardTabId] as number | undefined;
   },
 };

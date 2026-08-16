@@ -56,7 +56,7 @@ export function PasswordModal({ mode, onSuccess, onCancel, onReset }: PasswordMo
       {error && <p role="alert" className="mb-0 mt-3 rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-700 dark:bg-red-950 dark:text-red-200">{error}</p>}
       <div className="mt-5 flex gap-2">{onCancel && <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>}<button disabled={busy || remainingSeconds > 0} className="btn-primary flex-1 disabled:cursor-not-allowed disabled:opacity-50" type="submit">{remainingSeconds > 0 ? `Wait ${remainingSeconds}s` : busy ? "Checking…" : mode === "setup" ? "Create password" : "Unlock Retentia"}</button></div>
       {mode === "unlock" && onReset && <button type="button" className="muted mt-4 w-full border-0 bg-transparent text-center text-xs underline" onClick={onReset}>Forgot password? Reset protected Retentia data</button>}
-      <p className="muted mb-0 mt-4 text-center text-[11px]">This lock discourages casual access. It cannot protect against someone with full access to your Windows or Chrome profile.</p>
+      <p className="muted mb-0 mt-4 text-center text-[11px]">This lock discourages casual access. It cannot protect against someone with full access to your operating-system or browser profile.</p>
     </form>
   </div>;
 }

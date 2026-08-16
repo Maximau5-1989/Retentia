@@ -40,3 +40,6 @@ jobs:
 
       - name: Run tests and production build
         run: pnpm run check
+
+      - name: Validate Firefox package
+        run: pnpm dlx web-ext@10.5.0 lint --source-dir dist/firefox --no-input

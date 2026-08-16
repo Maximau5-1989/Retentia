@@ -25,7 +25,7 @@ Define how long your browser history should exist. Create retention policies for
 - **Protected websites** always override retention rules and category cleanup, including for subdomains.
 - Category presets can be activated, paused, and cleaned independently.
 - The optional **18+** category uses a transparent local domain list, is disabled by default, and suggests immediate history removal.
-- The local classification engine combines an expanded set of known domains, subdomains, URL structure, and Chrome's stored page title. It never opens websites or reads page content.
+- The local classification engine combines an expanded set of known domains, subdomains, URL structure, and the browser's stored page title. It never opens websites or reads page content.
 - A bundled offline database adds popular domains for every built-in category, including 46,021 popular 18+ domains. It is generated from UT1 and Curlie categorization data filtered by Google CrUX popularity data.
 - The category database is updated only when a new Retentia release is built. Retentia never submits visited domains or history to these data providers.
 - Automatic category matches require high-confidence evidence from multiple independent signals. Ambiguous and medium-confidence results remain uncategorized and are shown as possible matches for manual review.
@@ -44,7 +44,14 @@ pnpm test
 pnpm build
 ```
 
-Load `dist` through `chrome://extensions` → **Developer mode** → **Load unpacked**.
+`pnpm build` creates both browser targets:
+
+- Load `dist/chrome` through `chrome://extensions` → **Developer mode** → **Load unpacked**.
+- Open `about:debugging#/runtime/this-firefox` in Firefox, choose **Load Temporary Add-on**, and select `dist/firefox/manifest.json`.
+
+Firefox supports Retentia's popup, dashboard, rules, scanning, automatic cleanup, themes, and local security features. Firefox does not expose an extension context menu inside its privileged History interface, so the Chrome history-page right-click shortcut is not included in the Firefox build.
+
+Firefox packaging and AMO review details are documented in [FIREFOX_SUBMISSION.md](FIREFOX_SUBMISSION.md).
 
 ### Preparing a release
 
@@ -62,16 +69,16 @@ pnpm run release:minor -- --notes "Describe the completed feature set."
 pnpm run release:major -- --notes "Describe the breaking change."
 ```
 
-The release command synchronizes `package.json` and `public/manifest.json`, updates `CHANGELOG.md`, runs all tests and the production build, creates the versioned ZIP archive, and creates an annotated Git tag. Add `--no-commit` to skip the Git commit and tag.
+The release command synchronizes `package.json` and both files in `manifests/`, updates `CHANGELOG.md`, runs all tests and both production builds, creates separate versioned Chrome and Firefox ZIP archives, and creates an annotated Git tag. Add `--no-commit` to skip the Git commit and tag.
 
 ## Privacy
 
 Public privacy policy: https://maximau5-1989.github.io/Retentia/privacy/
 
-Retentia uses the Chrome History API and local extension storage. It has no host permissions, analytics, remote services, or account system.
+Retentia uses the browser History API and local extension storage. It has no host permissions, analytics, remote services, or account system.
 The public privacy policy is available at https://maximau5-1989.github.io/Retentia/privacy/.
 
-Category classification runs entirely in memory. URL paths, queries, and Chrome's stored page titles can contribute to a confidence score, but classification details are discarded when the dashboard is closed or refreshed and are never written to the activity log.
+Category classification runs entirely in memory. URL paths, queries, and the browser's stored page titles can contribute to a confidence score, but classification details are discarded when the dashboard is closed or refreshed and are never written to the activity log.
 
 Third-party domain data and attribution are documented in [THIRD_PARTY_DATA.md](THIRD_PARTY_DATA.md). The generated domain database is distributed under CC BY-SA 4.0; Retentia's original source code remains separate from that data license.
 
@@ -79,7 +86,7 @@ The activity log stores removal counts and timestamps only. It does not store de
 
 The Retentia password is never stored directly. Retentia stores a salted PBKDF2-SHA-256 hash locally. A successful login unlocks the pinned popup and dashboard for the lifetime of the registered dashboard tab. Closing that tab clears the unlock session, so the next opening from the pinned extension icon requires the password again. Rules no longer require a second password prompt after Retentia is unlocked.
 
-After repeated incorrect attempts, Retentia applies an increasing local delay. A forgotten-password reset removes the password, retention rules, activity log, and last scan summary. It never deletes browser history. The password lock is intended to discourage casual access; it is not a security boundary against someone with complete access to the Windows account, Chrome profile, or extension developer tools.
+After repeated incorrect attempts, Retentia applies an increasing local delay. A forgotten-password reset removes the password, retention rules, activity log, and last scan summary. It never deletes browser history. The password lock is intended to discourage casual access; it is not a security boundary against someone with complete access to the operating-system account, browser profile, or extension developer tools.
 
 ## License
 
@@ -100,4 +107,4 @@ does not replace or restrict those third-party licenses.
 
 ## Important behavior
 
-Chrome deletes history by URL. A retention timer is therefore based on the URL's most recent visit. Revisiting a URL resets its timer, and deleting an expired URL removes that URL's recorded visits from Chrome history.
+Chrome and Firefox delete history by URL. A retention timer is therefore based on the URL's most recent visit. Revisiting a URL resets its timer, and deleting an expired URL removes that URL's recorded visits from browser history.

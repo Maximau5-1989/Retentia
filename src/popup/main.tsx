@@ -8,11 +8,22 @@ import { deleteHistoryMatchingRule } from "../retention/engine";
 import { CATEGORY_PRESETS, getCategoryPreset, suggestCategory } from "../shared/categories";
 import { findDashboardTab, openDashboardTab } from "../shared/dashboard-tabs";
 import { installWindowDiagnostics } from "../shared/diagnostics";
+import { webExtension } from "../shared/web-extension";
 import type { CategoryId, RetentionRule, ScanResult, Settings, TimeUnit } from "../shared/types";
 import "../styles.css";
 
+function parseHttpUrl(value: string | undefined): URL | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? url : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function Popup() {
-  const extensionVersion = chrome.runtime.getManifest().version;
+  const extensionVersion = webExtension.runtime.getManifest().version;
   const { requestConfirmation, confirmationDialog } = useConfirmationDialog();
   const [tab, setTab] = useState<chrome.tabs.Tab>();
   const [settings, setSettings] = useState<Settings>();
@@ -31,7 +42,7 @@ function Popup() {
 
   useEffect(() => {
     void (async () => {
-      const [tabs, value, password, unlocked, loadedRules, loadedScan] = await Promise.all([chrome.tabs.query({ active: true, currentWindow: true }), storage.getSettings(), storage.getPassword(), sessionStorage.isUnlocked(), storage.getRules(), storage.getLastScan()]);
+      const [tabs, value, password, unlocked, loadedRules, loadedScan] = await Promise.all([webExtension.tabs.query({ active: true, currentWindow: true }), storage.getSettings(), storage.getPassword(), sessionStorage.isUnlocked(), storage.getRules(), storage.getLastScan()]);
       const dashboardSessionActive = unlocked && Boolean(await findDashboardTab());
       if (unlocked && !dashboardSessionActive) await sessionStorage.lock();
       const activeTab = tabs[0];
@@ -58,13 +69,13 @@ function Popup() {
     const handleStorageChange = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
       if (areaName === "local" && changes.settings?.newValue) setSettings(changes.settings.newValue as Settings);
     };
-    chrome.storage.onChanged.addListener(handleStorageChange);
-    return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+    webExtension.storage.onChanged.addListener(handleStorageChange);
+    return () => webExtension.storage.onChanged.removeListener(handleStorageChange);
   }, []);
 
   async function addRule() {
-    if (!tab?.url || tab.url.startsWith("chrome://")) return;
-    const url = new URL(tab.url);
+    const url = parseHttpUrl(tab?.url);
+    if (!url) return;
     const rules = await storage.getRules();
     const rule: RetentionRule = {
       id: crypto.randomUUID(), name: url.hostname, kind: "domain", pattern: url.hostname,
@@ -111,8 +122,8 @@ function Popup() {
 
   const activeRules = rules.filter((rule) => rule.enabled).length;
   const currentHostname = (() => {
-    if (!tab?.url) return "Unavailable";
-    try { return new URL(tab.url).hostname || "Browser page"; } catch { return "Unavailable"; }
+    const url = parseHttpUrl(tab?.url);
+    return url?.hostname || (tab?.url ? "Browser page" : "Unavailable");
   })();
 
   return <main className="w-[380px] bg-[#f6f8f4] p-4 dark:bg-[#0c1420]">

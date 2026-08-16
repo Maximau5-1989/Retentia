@@ -34,6 +34,11 @@ code.
 5. Each Retentia category is capped at 50,000 domains.
 6. Domains assigned to multiple categories remain ambiguous unless Retentia's
    existing URL and title signals resolve the conflict.
+7. A one-time local neural-network audit may resolve a source conflict only
+   when independent model runs select the same category that is already among
+   that domain's source assignments. The reviewed decisions are stored in
+   `scripts/category-model-resolutions.json`; all other conflicts remain
+   ambiguous.
 
 The database can be regenerated without machine-specific paths:
 

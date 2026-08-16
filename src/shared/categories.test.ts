@@ -85,10 +85,11 @@ describe("local category classifier", () => {
     });
   });
 
-  it("does not automatically classify conflicting database categories", () => {
+  it("uses the reviewed static resolution for a high-confidence database conflict", () => {
     expect(classifyCategory("https://10news.com/")).toMatchObject({
-      confidence: "none",
-      source: "none",
+      category: "news",
+      confidence: "high",
+      source: "database",
     });
   });
 

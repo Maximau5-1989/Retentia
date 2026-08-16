@@ -1,5 +1,9 @@
 # Firefox changelog
 
+## 2.3.0 — 2026-08-16
+
+- Applied a one-time local neural-network audit to resolve 18 high-confidence conflicts in the offline category database. The remaining uncertain source conflicts remain unresolved and cannot trigger automatic category rules.
+
 ## 2.2.2 — 2026-08-16
 
 - Removed the What's new link beside the version number in the desktop and compact dashboard headers.

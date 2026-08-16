@@ -12,6 +12,7 @@
     "test": "vitest run --configLoader runner",
     "check": "vitest run --configLoader runner && tsc --noEmit && vite build --mode chrome --configLoader runner && vite build --mode firefox --configLoader runner",
     "data:categories": "node scripts/build-category-database.mjs",
+    "data:resolve-category-conflicts": "node scripts/apply-category-model-resolutions.mjs",
     "release:chrome:patch": "node scripts/release.mjs chrome patch",
     "release:chrome:minor": "node scripts/release.mjs chrome minor",
     "release:chrome:major": "node scripts/release.mjs chrome major",

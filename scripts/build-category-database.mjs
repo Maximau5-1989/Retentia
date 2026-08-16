@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { createReadStream, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { createReadStream, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { createGunzip } from "node:zlib";
 import { createInterface } from "node:readline";
@@ -9,6 +9,7 @@ const MAX_PER_CATEGORY = 50_000;
 const args = readArgs(process.argv.slice(2));
 const root = resolve(import.meta.dirname, "..");
 const outputPath = resolve(args.output ?? resolve(root, "src", "shared", "generated", "category-domains.json"));
+const resolutionsPath = resolve(root, "scripts", "category-model-resolutions.json");
 
 for (const required of ["ut1", "curlie", "crux"]) {
   if (!args[required]) fail(`Missing --${required} <path>.`);
@@ -29,6 +30,7 @@ const domains = Object.fromEntries(CATEGORY_IDS.map((category) => {
     .map(([domain]) => domain);
   return [category, selected];
 }));
+const modelConflictResolutions = applyModelConflictResolutions(domains, resolutionsPath);
 
 const result = {
   schemaVersion: 1,
@@ -62,6 +64,7 @@ const result = {
     },
   ],
   domains,
+  ...(modelConflictResolutions ? { modelConflictResolutions } : {}),
 };
 
 mkdirSync(dirname(outputPath), { recursive: true });
@@ -165,6 +168,26 @@ function classifyCurliePath(path) {
 function addMatch(target, domain, rank) {
   const current = target.get(domain);
   if (current === undefined || rank < current) target.set(domain, rank);
+}
+
+function applyModelConflictResolutions(domains, path) {
+  const resolutionData = JSON.parse(readFileSync(path, "utf8"));
+  for (const resolution of resolutionData.resolutions ?? []) {
+    if (!CATEGORY_IDS.includes(resolution.category)) fail(`Unknown resolution category: ${resolution.category}`);
+    const matches = CATEGORY_IDS.filter((category) => domains[category].includes(resolution.domain));
+    if (!matches.length) continue;
+    if (!matches.includes(resolution.category)) fail(`Resolution target is not a source category for ${resolution.domain}`);
+    for (const category of matches) {
+      if (category !== resolution.category) {
+        domains[category] = domains[category].filter((domain) => domain !== resolution.domain);
+      }
+    }
+  }
+  return {
+    generatedAt: resolutionData.generatedAt,
+    method: resolutionData.method,
+    resolvedDomains: resolutionData.resolutions?.length ?? 0,
+  };
 }
 
 function addCandidate(target, domain, category) {

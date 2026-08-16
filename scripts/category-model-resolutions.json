@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-16",
+  "method": "One-time local character-level neural-network ensemble. A resolution is included only when both model runs selected the same existing source category with confidence of at least 0.95 and a margin of at least 0.30.",
+  "resolutions": [
+    { "domain": "greenplanetfilms.org", "category": "entertainment" },
+    { "domain": "nbcnews.com", "category": "news" },
+    { "domain": "cyclingnews.com", "category": "news" },
+    { "domain": "indiatvnews.com", "category": "news" },
+    { "domain": "12news.com", "category": "news" },
+    { "domain": "winknews.com", "category": "news" },
+    { "domain": "10news.com", "category": "news" },
+    { "domain": "news24online.com", "category": "news" },
+    { "domain": "wmbfnews.com", "category": "news" },
+    { "domain": "pokernewsdaily.com", "category": "news" },
+    { "domain": "borgernewsherald.com", "category": "news" },
+    { "domain": "portoriohotel.gr", "category": "travel" },
+    { "domain": "visitpensacolabeach.com", "category": "travel" },
+    { "domain": "bratserahotel.com", "category": "travel" },
+    { "domain": "megahotel.com.my", "category": "travel" },
+    { "domain": "sexylosers.com", "category": "adult" },
+    { "domain": "upcomics.org", "category": "entertainment" },
+    { "domain": "freesexycomics.com", "category": "adult" }
+  ]
+}

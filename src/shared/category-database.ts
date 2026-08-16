@@ -8,6 +8,7 @@ interface CategoryDatabaseFile {
   popularityScope: string;
   sources: Array<{ name: string; url: string; license: string; use: string }>;
   domains: Record<CategoryId, string[]>;
+  modelConflictResolutions?: { generatedAt: string; method: string; resolvedDomains: number };
 }
 
 const database = categoryData as CategoryDatabaseFile;
@@ -21,6 +22,7 @@ export const CATEGORY_DATABASE_METADATA = {
   popularityScope: database.popularityScope,
   sources: database.sources,
   counts: Object.fromEntries(Object.entries(database.domains).map(([category, domains]) => [category, domains.length])) as Record<CategoryId, number>,
+  modelConflictResolutions: database.modelConflictResolutions,
 } as const;
 
 export function findDatabaseCategories(hostname: string): CategoryId[] {

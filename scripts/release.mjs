@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
@@ -140,19 +140,11 @@ function targetLabel(targetName) {
 }
 
 function createArchive(destination, sourceDirectory) {
-  if (process.platform !== "win32") {
-    fail("ZIP creation currently requires Windows PowerShell.");
-  }
-  const escapedSource = resolve(root, sourceDirectory, "*").replaceAll("'", "''");
-  const escapedDestination = destination.replaceAll("'", "''");
-  const command = `Compress-Archive -Path '${escapedSource}' -DestinationPath '${escapedDestination}' -CompressionLevel Optimal`;
-  run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command]);
+  const sourcePath = resolve(root, sourceDirectory);
+  createZipArchive(destination, sourcePath, readdirSync(sourcePath));
 }
 
 function createSourceArchive(destination) {
-  if (process.platform !== "win32") {
-    fail("ZIP creation currently requires Windows PowerShell.");
-  }
   const sourceEntries = [
     ".github",
     "assets",
@@ -176,12 +168,13 @@ function createSourceArchive(destination) {
     "tsconfig.json",
     "vite.config.ts",
   ];
-  const escapedSources = sourceEntries
-    .map((entry) => `'${resolve(root, entry).replaceAll("'", "''")}'`)
-    .join(",");
-  const escapedDestination = destination.replaceAll("'", "''");
-  const command = `Compress-Archive -Path ${escapedSources} -DestinationPath '${escapedDestination}' -CompressionLevel Optimal`;
-  run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command]);
+  createZipArchive(destination, root, sourceEntries);
+}
+
+function createZipArchive(destination, baseDirectory, entries) {
+  // Windows Compress-Archive writes backslashes into ZIP entry names. AMO
+  // rejects those archives, while bsdtar creates portable forward-slash paths.
+  run("tar.exe", ["-a", "-c", "-f", destination, "-C", baseDirectory, ...entries]);
 }
 
 function run(command, commandArgs, options = {}) {

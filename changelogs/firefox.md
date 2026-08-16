@@ -1,5 +1,9 @@
 # Firefox changelog
 
+## 2.3.1 - 2026-08-16
+
+- Raised Firefox's minimum version to 142 so the declared no-data-collection permission is supported on Firefox for Android.
+
 ## 2.3.0 — 2026-08-16
 
 - Applied a one-time local neural-network audit to resolve 18 high-confidence conflicts in the offline category database. The remaining uncertain source conflicts remain unresolved and cannot trigger automatic category rules.

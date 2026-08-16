@@ -2,6 +2,14 @@ import type { ReleaseNotes } from "./types";
 
 export const FIREFOX_RELEASE_NOTES: readonly ReleaseNotes[] = [
   {
+    version: "2.3.1",
+    date: "2026-08-16",
+    title: "Firefox Android manifest compatibility",
+    changes: [
+      "Raised Firefox's minimum version to 142 so the declared no-data-collection permission is supported on Firefox for Android.",
+    ],
+  },
+  {
     version: "2.3.0",
     date: "2026-08-16",
     title: "More accurate category conflicts",

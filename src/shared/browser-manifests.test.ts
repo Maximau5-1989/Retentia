@@ -17,7 +17,7 @@ describe("browser manifests", () => {
     expect(firefoxManifest.permissions).toEqual(["history", "storage", "alarms", "tabs"]);
     expect(firefoxManifest.browser_specific_settings.gecko).toMatchObject({
       id: "{77b5fe30-ca69-401c-8367-34947d2e21ef}",
-      strict_min_version: "140.0",
+      strict_min_version: "142.0",
       data_collection_permissions: { required: ["none"] },
     });
   });

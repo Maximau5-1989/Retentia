@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Retentia",
   "short_name": "Retentia",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Give selected browser history a personal expiration date.",
   "permissions": [
     "history",
@@ -36,7 +36,7 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "{77b5fe30-ca69-401c-8367-34947d2e21ef}",
-      "strict_min_version": "140.0",
+      "strict_min_version": "142.0",
       "data_collection_permissions": {
         "required": [
           "none"

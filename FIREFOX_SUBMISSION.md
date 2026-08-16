@@ -1,6 +1,6 @@
 # Firefox submission notes
 
-Retentia's Firefox package targets Firefox Desktop 140 or newer. The Firefox build intentionally omits the Chrome history-page context menu because Firefox's privileged History interface does not expose extension context menus. The popup, dashboard, rules, category classifier, simulator, scheduled cleanup, themes, password protection, backups, and diagnostics remain available.
+Retentia's Firefox package targets Firefox 142 or newer. The Firefox build intentionally omits the Chrome history-page context menu because Firefox's privileged History interface does not expose extension context menus. The popup, dashboard, rules, category classifier, simulator, scheduled cleanup, themes, password protection, backups, and diagnostics remain available.
 
 ## Reproducible build
 
@@ -22,4 +22,4 @@ Retentia does not collect or transmit extension data. Browser history, rules, se
 
 ## Expected validator warnings
 
-Mozilla's validator reports one Firefox-for-Android compatibility warning because this package is desktop-only and therefore omits `browser_specific_settings.gecko_android`. It also reports two `innerHTML` warnings in the bundled React DOM runtime. Retentia's source does not use `innerHTML` or React's `dangerouslySetInnerHTML`; these generic code paths are part of the unmodified React 19.2.8 dependency recorded in `pnpm-lock.yaml`.
+Mozilla's validator may report two `innerHTML` warnings in the bundled React DOM runtime. Retentia's source does not use `innerHTML` or React's `dangerouslySetInnerHTML`; these generic code paths are part of the unmodified React 19.2.8 dependency recorded in `pnpm-lock.yaml`.

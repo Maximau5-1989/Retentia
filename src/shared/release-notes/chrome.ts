@@ -2,6 +2,15 @@ import type { ReleaseNotes } from "./types";
 
 export const CHROME_RELEASE_NOTES: readonly ReleaseNotes[] = [
   {
+    version: "2.3.0",
+    date: "2026-08-16",
+    title: "More accurate category conflicts",
+    changes: [
+      "Applied the one-time local neural-network audit to resolve 18 high-confidence conflicts in Chrome's offline category database.",
+      "Kept all remaining uncertain source conflicts unresolved, so they cannot trigger automatic category rules.",
+    ],
+  },
+  {
     version: "2.2.0",
     date: "2026-08-16",
     title: "Cross-browser packaging",

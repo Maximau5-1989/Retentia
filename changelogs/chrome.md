@@ -1,5 +1,9 @@
 # Chrome changelog
 
+## 2.3.0 - 2026-08-16
+
+- Applied the one-time local neural-network audit to resolve 18 high-confidence conflicts in Chrome's offline category database. Remaining uncertain source conflicts stay unresolved so they cannot trigger automatic category rules.
+
 ## 2.2.0 — 2026-08-16
 
 - Added browser-specific packaging while preserving Retentia's existing Chrome behavior and history-page context menu. Chrome and Firefox packages now use independently validated manifests and build outputs.

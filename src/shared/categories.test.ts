@@ -114,6 +114,17 @@ describe("local category classifier", () => {
     expect(JSON.stringify(buckets)).not.toContain("Adult area");
   });
 
+  it("treats Firefox history items with a null title as untitled pages", () => {
+    const buckets = categorizeHistoryEntries([
+      { url: "https://unknown-example.invalid/path", title: null, visitCount: 2 },
+    ]);
+
+    expect(buckets.find((bucket) => !bucket.category)).toMatchObject({
+      urls: 1,
+      visits: 2,
+    });
+  });
+
   it("lets local overrides take precedence over every classifier signal", () => {
     expect(resolveCategory("youtube.com", { "youtube.com": "entertainment" })).toBe("entertainment");
     const bucket = categorizeHistoryEntries(

@@ -55,21 +55,23 @@ Firefox packaging and AMO review details are documented in [FIREFOX_SUBMISSION.m
 
 ### Preparing a release
 
-Preview the next patch version without changing files:
+Chrome and Firefox use independent versions and changelogs. Preview the next Firefox patch version without changing files:
 
 ```powershell
-pnpm run release:dry-run
+pnpm run release:firefox:dry-run
 ```
 
-Prepare a patch, minor, or major release with a concise changelog entry:
+Prepare a Firefox patch, minor, or major release with a concise changelog entry:
 
 ```powershell
-pnpm run release:patch -- --notes "Describe the completed change."
-pnpm run release:minor -- --notes "Describe the completed feature set."
-pnpm run release:major -- --notes "Describe the breaking change."
+pnpm run release:firefox:patch -- --notes "Describe the completed change."
+pnpm run release:firefox:minor -- --notes "Describe the completed feature set."
+pnpm run release:firefox:major -- --notes "Describe the breaking change."
 ```
 
-The release command synchronizes `package.json` and both files in `manifests/`, updates `CHANGELOG.md`, runs all tests and both production builds, creates separate versioned Chrome and Firefox ZIP archives, and creates an annotated Git tag. Add `--no-commit` to skip the Git commit and tag.
+Equivalent `release:chrome:*` commands remain available when Chrome development resumes. A release command updates only the selected browser manifest and Markdown changelog, runs all tests and both production builds, creates only that browser's versioned ZIP, and creates a browser-prefixed annotated Git tag. Firefox releases also create the source ZIP required for AMO review. Add `--no-commit` to skip the Git commit and tag.
+
+Release histories are maintained separately in the [Chrome changelog](changelogs/chrome.md) and [Firefox changelog](changelogs/firefox.md).
 
 ## Privacy
 

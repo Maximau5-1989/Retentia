@@ -1,15 +1,23 @@
 import { storage } from "../shared/storage";
 import { categorizeHistoryEntries } from "../shared/categories";
 import type { CategoryScanResult, HistoryCandidate, RetentionRule, ScanResult } from "../shared/types";
-import { webExtension } from "../shared/web-extension";
+import { isFirefox, webExtension } from "../shared/web-extension";
 import { findWinningRule, getExpirationTime, matchesRule } from "./matcher";
 import { isProtectedUrl } from "./protection";
 
 const AUTOMATIC_SCAN_LIMIT = 100_000;
 const MANUAL_SCAN_LIMIT = 1_000_000;
 
+function categoryScanLimit(): number {
+  // Firefox buffers history.search results before resolving the promise. Keeping
+  // its interactive dashboard scan aligned with Retentia's automatic safety
+  // limit avoids a large profile freezing the page or exhausting memory.
+  return isFirefox() ? AUTOMATIC_SCAN_LIMIT : MANUAL_SCAN_LIMIT;
+}
+
 export async function scanHistoryCategories(): Promise<CategoryScanResult> {
-  const [history, overrides, rejections] = await Promise.all([webExtension.history.search({ text: "", startTime: 0, maxResults: MANUAL_SCAN_LIMIT }), storage.getCategoryOverrides(), storage.getCategoryRejections()]);
+  const limit = categoryScanLimit();
+  const [history, overrides, rejections] = await Promise.all([webExtension.history.search({ text: "", startTime: 0, maxResults: limit }), storage.getCategoryOverrides(), storage.getCategoryRejections()]);
   const buckets = categorizeHistoryEntries(history, overrides, rejections);
   const categorized = buckets.filter((bucket) => bucket.category).reduce((total, bucket) => total + bucket.urls, 0);
   const uncategorized = buckets.find((bucket) => !bucket.category)?.urls ?? 0;
@@ -19,7 +27,7 @@ export async function scanHistoryCategories(): Promise<CategoryScanResult> {
     uncategorized,
     buckets,
     runAt: Date.now(),
-    resultLimitReached: history.length === MANUAL_SCAN_LIMIT,
+    resultLimitReached: history.length === limit,
   };
 }
 

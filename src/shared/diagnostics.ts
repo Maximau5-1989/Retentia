@@ -31,6 +31,7 @@ function safePosition(value: number | undefined): number | undefined {
 const DIAGNOSTIC_CODES = new Set<DiagnosticCode>([
   "alarm-configuration-failed",
   "automatic-scan-failed",
+  "category-scan-failed",
   "extension-initialization-failed",
   "immediate-removal-failed",
   "uncaught-error",

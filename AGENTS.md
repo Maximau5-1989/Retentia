@@ -5,9 +5,10 @@
 - Use semantic versioning (`MAJOR.MINOR.PATCH`).
 - Automatically increment the version for every completed functional change unless the user explicitly requests a specific version.
 - Default to a PATCH increment for fixes and small additions, MINOR for backward-compatible feature sets, and MAJOR for breaking changes.
-- Keep the version synchronized in `package.json`, `manifests/chrome.json`, `manifests/firefox.json`, `CHANGELOG.md`, and both browser-specific release archive names.
-- Rebuild and recreate the release archive after each version change.
-- Never leave an older release archive as the apparent current release; archive or remove it only when that action is clearly authorized.
+- Treat `manifests/chrome.json` and `manifests/firefox.json` as independent browser version sources; `package.json` has no product version.
+- Increment only the browser target being released. Keep that target's manifest, in-app release notes, Markdown changelog, archive name, and browser-prefixed Git tag synchronized without changing the other browser's version history.
+- Rebuild both browser targets for shared-code validation, but create a release archive only for the browser being released. Firefox releases also require a matching source archive for AMO review.
+- Never leave an older archive as the apparent current release for the same browser; archive or remove it only when that action is clearly authorized.
 
 ## Quality
 

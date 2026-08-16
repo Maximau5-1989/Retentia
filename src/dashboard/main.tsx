@@ -18,7 +18,7 @@ import { DEFAULT_SETTINGS } from "../shared/defaults";
 import { createBackup, parseBackup } from "../shared/backup";
 import { BUG_REPORT_URL } from "../shared/bug-report";
 import { getReleaseNotes, RELEASE_NOTES } from "../shared/changelog";
-import { installWindowDiagnostics } from "../shared/diagnostics";
+import { installWindowDiagnostics, recordDiagnostic } from "../shared/diagnostics";
 import { SUPPORT_URL } from "../shared/support";
 import { webExtension } from "../shared/web-extension";
 import type { ActivityEntry, CategoryId, CategoryOverrides, CategoryRejections, CategoryScanResult, DiagnosticEntry, RetentionRule, RuleKind, ScanResult, Settings, TimeUnit } from "../shared/types";
@@ -108,6 +108,7 @@ function Dashboard() {
   const [pendingAddToRuleUrl, setPendingAddToRuleUrl] = useState(requestedAddToRuleUrl);
   const [categoryScan, setCategoryScan] = useState<CategoryScanResult>();
   const [scanningCategories, setScanningCategories] = useState(false);
+  const [categoryScanError, setCategoryScanError] = useState("");
   const [categoryOverrides, setCategoryOverrides] = useState<CategoryOverrides>({});
   const [categoryRejections, setCategoryRejections] = useState<CategoryRejections>({});
   const [protectedDomains, setProtectedDomains] = useState<string[]>([]);
@@ -264,7 +265,26 @@ function Dashboard() {
     try { setLastScan(await scanHistory(true)); await refresh(); setNotice("Cleanup complete"); }
     finally { setSimulating(false); }
   }
-  async function runCategoryScan() { setScanningCategories(true); try { setCategoryScan(await scanHistoryCategories()); } finally { setScanningCategories(false); } }
+  async function refreshCategoryScanResults(): Promise<boolean> {
+    setCategoryScanError("");
+    try {
+      setCategoryScan(await scanHistoryCategories());
+      return true;
+    } catch (error) {
+      setCategoryScanError("The local classifier could not read browser history. Retentia recorded a privacy-safe diagnostic; reload Firefox and try again.");
+      await recordDiagnostic("dashboard", "category-scan-failed", error);
+      return false;
+    }
+  }
+
+  async function runCategoryScan() {
+    setScanningCategories(true);
+    try {
+      await refreshCategoryScanResults();
+    } finally {
+      setScanningCategories(false);
+    }
+  }
   async function prepareDefaultRules(activate: boolean) {
     if (activate && !await requestConfirmation({
       title: "Activate every category rule?",
@@ -296,7 +316,7 @@ function Dashboard() {
     await Promise.all([storage.setCategoryOverrides(overrides), storage.setCategoryRejections(rejections)]);
     setCategoryOverrides({ ...overrides });
     setCategoryRejections({ ...rejections });
-    setCategoryScan(await scanHistoryCategories());
+    await runCategoryScan();
     setNotice(category
       ? `${domain} classified as ${getCategoryPreset(category)?.label}`
       : category === null
@@ -309,7 +329,7 @@ function Dashboard() {
     if (!rejections[domain].length) delete rejections[domain];
     await storage.setCategoryRejections(rejections);
     setCategoryRejections({ ...rejections });
-    if (categoryScan) setCategoryScan(await scanHistoryCategories());
+    if (categoryScan) await runCategoryScan();
     setNotice(`${getCategoryPreset(category)?.label} suggestion restored for ${domain}`);
   }
   async function toggleCategoryRule(category: CategoryId) {
@@ -562,7 +582,7 @@ function Dashboard() {
           <section className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_1fr]"><div className="card p-6"><div className="flex items-center justify-between"><h3 className="m-0 text-lg font-extrabold">System status</h3><button className="btn-primary" onClick={() => { setView('simulator'); void simulate(); }}>Run preview</button></div><dl className="mt-5 grid grid-cols-2 gap-4"><div><dt className="muted text-xs font-bold uppercase">Last scan</dt><dd className="ml-0 mt-1 font-bold">{formatDate(lastScan?.runAt)}</dd></div><div><dt className="muted text-xs font-bold uppercase">Schedule</dt><dd className="ml-0 mt-1 font-bold">Every {settings.scanIntervalMinutes} min</dd></div><div><dt className="muted text-xs font-bold uppercase">Matched last scan</dt><dd className="ml-0 mt-1 font-bold">{lastScan?.matched ?? 0}</dd></div><div><dt className="muted text-xs font-bold uppercase">Ready to expire</dt><dd className="ml-0 mt-1 font-bold">{lastScan?.expired ?? 0}</dd></div></dl></div><div className="card p-6"><h3 className="m-0 text-lg font-extrabold">Privacy-safe activity</h3><p className="muted text-sm">Retentia stores removal totals only. Deleted URLs and domains are never written to its activity or scan history.</p><div className="mt-5 text-3xl font-black">{deletedCount}</div><p className="muted mt-1 text-xs font-bold uppercase">History URLs removed</p></div></section>
         </>}
 
-        {view === "categories" && <section><div className="card mb-6 flex flex-wrap items-center justify-between gap-4 p-6"><div><h3 className="m-0 text-lg font-extrabold">Local history classifier</h3><p className="muted mb-0 mt-1 max-w-2xl text-sm">Classifies browser history locally from known domains, an offline popular-domain database, URL structure, and stored page titles. Retentia never opens pages or reads page content. Scan results are discarded; only classifications you choose are saved locally.</p><p className="muted mb-0 mt-3 max-w-2xl text-xs">Database sources: <a href="https://dsi.ut-capitole.fr/blacklists/" target="_blank" rel="noreferrer">UT1 Blacklists</a>, Google <a href="https://developer.chrome.com/docs/crux/" target="_blank" rel="noreferrer">CrUX</a>, and content from <a href="https://curlie.org/" target="_blank" rel="noreferrer">Curlie.org</a> — the largest human-edited directory of the web. Contribute by submitting a website or becoming an editor.</p></div><button className="btn-primary" disabled={scanningCategories} onClick={runCategoryScan}>{scanningCategories ? 'Scanning history…' : categoryScan ? 'Scan again' : 'Scan all history'}</button></div>{categoryScan ? <><div className="mb-5 grid gap-4 md:grid-cols-3">{[[categoryScan.scanned,'History URLs scanned'],[categoryScan.categorized,'High-confidence matches'],[categoryScan.uncategorized,'Uncategorized or uncertain']].map(([value,label]) => <div className="card p-5" key={label}><strong className="text-3xl">{value}</strong><p className="muted mb-0 mt-1 text-sm font-semibold">{label}</p></div>)}</div>{categoryScan.resultLimitReached && <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">The browser returned the one-million-result safety limit. The displayed totals may not include older entries beyond that limit.</div>}<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{categoryScan.buckets.map(bucket => { const preset=getCategoryPreset(bucket.category); const possible=preset ? countSuggestedUrls(categoryScan, preset.id) : 0; return <article className="card p-5" key={bucket.category ?? 'uncategorized'}><div className="flex items-start justify-between gap-3"><div><h3 className="m-0 text-base font-extrabold">{preset?.label ?? 'Uncategorized'}</h3><p className="muted mb-0 mt-1 text-xs">{preset?.description ?? 'No high-confidence local match was found.'}</p></div><span className="pill">{bucket.urls}</span></div><div className="muted mt-4 text-xs font-semibold">{bucket.visits} recorded visits</div>{possible > 0 && <div className="mt-2 text-xs font-bold text-amber-700 dark:text-amber-300">{possible} possible match{possible === 1 ? '' : 'es'} for review</div>}{preset && <div className="mt-3 text-xs font-bold">{preset.deleteImmediately ? 'Suggested deletion: immediately after visit' : `Suggested retention: ${preset.duration} ${preset.unit}`}</div>}</article>})}</div><p className="muted mt-5 text-xs">High-confidence matches may be used by category rules. You can correct every scanned domain below, including false positives. Closing or refreshing this page discards the scan details but keeps your chosen classifications.</p></> : <div className="card p-12 text-center"><h3>Nothing has been scanned yet</h3><p className="muted mx-auto max-w-xl">Start a local scan to classify history without opening websites or reading their page content. Every category remains visible, including categories with zero matches.</p></div>}</section>}
+        {view === "categories" && <section><div className="card mb-6 flex flex-wrap items-center justify-between gap-4 p-6"><div><h3 className="m-0 text-lg font-extrabold">Local history classifier</h3><p className="muted mb-0 mt-1 max-w-2xl text-sm">Classifies browser history locally from known domains, an offline popular-domain database, URL structure, and stored page titles. Retentia never opens pages or reads page content. Scan results are discarded; only classifications you choose are saved locally.</p><p className="muted mb-0 mt-3 max-w-2xl text-xs">Database sources: <a href="https://dsi.ut-capitole.fr/blacklists/" target="_blank" rel="noreferrer">UT1 Blacklists</a>, Google <a href="https://developer.chrome.com/docs/crux/" target="_blank" rel="noreferrer">CrUX</a>, and content from <a href="https://curlie.org/" target="_blank" rel="noreferrer">Curlie.org</a> — the largest human-edited directory of the web. Contribute by submitting a website or becoming an editor.</p></div><button className="btn-primary" disabled={scanningCategories} onClick={runCategoryScan}>{scanningCategories ? 'Scanning history…' : categoryScan ? 'Scan again' : 'Scan all history'}</button></div>{categoryScanError && <div role="alert" className="mb-5 rounded-xl border border-red-300 bg-red-50 p-4 text-sm font-semibold text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100">{categoryScanError}</div>}{categoryScan ? <><div className="mb-5 grid gap-4 md:grid-cols-3">{[[categoryScan.scanned,'History URLs scanned'],[categoryScan.categorized,'High-confidence matches'],[categoryScan.uncategorized,'Uncategorized or uncertain']].map(([value,label]) => <div className="card p-5" key={label}><strong className="text-3xl">{value}</strong><p className="muted mb-0 mt-1 text-sm font-semibold">{label}</p></div>)}</div>{categoryScan.resultLimitReached && <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">The browser returned Retentia's category-scan safety limit. The displayed totals may not include older entries beyond that limit.</div>}<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{categoryScan.buckets.map(bucket => { const preset=getCategoryPreset(bucket.category); const possible=preset ? countSuggestedUrls(categoryScan, preset.id) : 0; return <article className="card p-5" key={bucket.category ?? 'uncategorized'}><div className="flex items-start justify-between gap-3"><div><h3 className="m-0 text-base font-extrabold">{preset?.label ?? 'Uncategorized'}</h3><p className="muted mb-0 mt-1 text-xs">{preset?.description ?? 'No high-confidence local match was found.'}</p></div><span className="pill">{bucket.urls}</span></div><div className="muted mt-4 text-xs font-semibold">{bucket.visits} recorded visits</div>{possible > 0 && <div className="mt-2 text-xs font-bold text-amber-700 dark:text-amber-300">{possible} possible match{possible === 1 ? '' : 'es'} for review</div>}{preset && <div className="mt-3 text-xs font-bold">{preset.deleteImmediately ? 'Suggested deletion: immediately after visit' : `Suggested retention: ${preset.duration} ${preset.unit}`}</div>}</article>})}</div><p className="muted mt-5 text-xs">High-confidence matches may be used by category rules. You can correct every scanned domain below, including false positives. Closing or refreshing this page discards the scan details but keeps your chosen classifications.</p></> : <div className="card p-12 text-center"><h3>Nothing has been scanned yet</h3><p className="muted mx-auto max-w-xl">Start a local scan to classify history without opening websites or reading their page content. Every category remains visible, including categories with zero matches.</p></div>}</section>}
 
         {view === "categories" && categoryScan && CATEGORY_PRESETS.map(preset => { const possibleDomains=getSuggestedDomains(categoryScan, preset.id); return possibleDomains.length > 0 ? <section className="card mb-6 overflow-hidden border-[#bddcac] dark:border-[#3f6747]" key={`review-${preset.id}`}><div className="border-b border-[#d8ead0] bg-[#f1f8ed] p-5 dark:border-[#31513a] dark:bg-[#193123]"><h3 className="m-0 text-lg font-extrabold">Review possible matches for {preset.label}</h3><p className="muted mb-0 mt-1 text-sm">Confirm the suggestion, reject it and keep the domain uncategorized, or choose a different category. Your choice is stored locally and takes priority during future scans.</p></div><div>{possibleDomains.map(item => <div className="flex flex-wrap items-center gap-4 border-t border-[#edf0ea] px-5 py-4 first:border-t-0 dark:border-[#29394a]" key={`review-${preset.id}-${item.domain}`}><div className="min-w-0 flex-1"><div className="truncate text-sm font-bold">{item.domain}</div><div className="muted text-xs">{item.urls} URLs · {item.visits} visits · confidence score {item.score}</div></div><div className="flex shrink-0 flex-wrap gap-2"><button className="btn-secondary" onClick={() => void moveDomain(item.domain, null)}>Reject</button><button className="btn-primary" onClick={() => void moveDomain(item.domain, preset.id)}>Confirm {preset.label}</button><select aria-label={`Classify ${item.domain}`} className="field !w-52" defaultValue="" onChange={event => void moveDomain(item.domain, parseCategoryChoice(event.target.value))}><option value="" disabled>Different category…</option>{CATEGORY_PRESETS.filter(option => option.id !== preset.id).map(option => <option value={option.id} key={option.id}>{option.label}</option>)}</select></div></div>)}</div></section> : null; })}
 

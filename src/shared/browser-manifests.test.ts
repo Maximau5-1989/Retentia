@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
-import packageJson from "../../package.json";
 import chromeManifest from "../../manifests/chrome.json";
 import firefoxManifest from "../../manifests/firefox.json";
 
 describe("browser manifests", () => {
-  it("keeps package and browser versions synchronized", () => {
-    expect(chromeManifest.version).toBe(packageJson.version);
-    expect(firefoxManifest.version).toBe(packageJson.version);
+  it("uses independent semantic versions for each browser", () => {
+    expect(chromeManifest.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(firefoxManifest.version).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
   it("uses the background model supported by each browser", () => {

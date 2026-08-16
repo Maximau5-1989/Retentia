@@ -11,6 +11,11 @@ export default defineConfig(({ mode }) => {
   const outDir = mode === "firefox" ? "dist/firefox" : "dist/chrome";
 
   return {
+    resolve: {
+      alias: {
+        "@retentia/release-notes": resolve(import.meta.dirname, "src", "shared", "release-notes", `${target}.ts`),
+      },
+    },
     plugins: [
       react(),
       tailwindcss(),

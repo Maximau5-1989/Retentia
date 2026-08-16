@@ -14,6 +14,8 @@ pnpm dlx web-ext@10.5.0 lint --source-dir dist/firefox --no-input
 
 The Firefox extension is written to `dist/firefox`. Do not regenerate `src/shared/generated/category-domains.json`; the reviewed generated database is committed and its sources are documented in `THIRD_PARTY_DATA.md`.
 
+Firefox versions and release notes are independent from Chrome. The reviewed Firefox history is recorded in `changelogs/firefox.md`, and `pnpm run release:firefox:patch -- --notes "..."` creates matching `retentia-firefox-v<version>.zip` and `retentia-firefox-v<version>-sources.zip` files after all shared tests and both browser builds pass.
+
 ## Data handling
 
 Retentia does not collect or transmit extension data. Browser history, rules, settings, authentication records, scan summaries, and sanitized diagnostic entries remain in local extension storage. External project, privacy-policy, attribution, support, and bug-report links open only after an explicit user action.

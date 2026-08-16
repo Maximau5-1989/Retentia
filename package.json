@@ -2,7 +2,6 @@
   "name": "retentia",
   "private": true,
   "license": "UNLICENSED",
-  "version": "2.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,10 +12,14 @@
     "test": "vitest run --configLoader runner",
     "check": "vitest run --configLoader runner && tsc --noEmit && vite build --mode chrome --configLoader runner && vite build --mode firefox --configLoader runner",
     "data:categories": "node scripts/build-category-database.mjs",
-    "release:patch": "node scripts/release.mjs patch",
-    "release:minor": "node scripts/release.mjs minor",
-    "release:major": "node scripts/release.mjs major",
-    "release:dry-run": "node scripts/release.mjs patch --dry-run"
+    "release:chrome:patch": "node scripts/release.mjs chrome patch",
+    "release:chrome:minor": "node scripts/release.mjs chrome minor",
+    "release:chrome:major": "node scripts/release.mjs chrome major",
+    "release:chrome:dry-run": "node scripts/release.mjs chrome patch --dry-run",
+    "release:firefox:patch": "node scripts/release.mjs firefox patch",
+    "release:firefox:minor": "node scripts/release.mjs firefox minor",
+    "release:firefox:major": "node scripts/release.mjs firefox major",
+    "release:firefox:dry-run": "node scripts/release.mjs firefox patch --dry-run"
   },
   "dependencies": {
     "react": "^19.2.8",

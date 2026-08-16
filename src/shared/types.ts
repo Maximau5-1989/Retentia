@@ -51,6 +51,7 @@ export type DiagnosticSource = "background" | "dashboard" | "popup";
 export type DiagnosticCode =
   | "alarm-configuration-failed"
   | "automatic-scan-failed"
+  | "category-scan-failed"
   | "extension-initialization-failed"
   | "immediate-removal-failed"
   | "uncaught-error"

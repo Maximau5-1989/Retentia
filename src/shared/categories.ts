@@ -157,7 +157,7 @@ export function normalizeHostname(input: string): string | undefined {
   return parsed?.hostname.replace(/^www\./, "");
 }
 
-export function classifyCategory(input: string, title = "", overrides: CategoryOverrides = {}): CategoryClassification {
+export function classifyCategory(input: string, title: string | null = "", overrides: CategoryOverrides = {}): CategoryClassification {
   const parsed = parseUrl(input);
   if (!parsed) return { confidence: "none", score: 0, source: "none" };
   const hostname = parsed.hostname.replace(/^www\./, "");
@@ -178,7 +178,7 @@ export function classifyCategory(input: string, title = "", overrides: CategoryO
 
   const urlText = `${parsed.pathname} ${parsed.search}`;
   const scores = CATEGORY_PRESETS
-    .map((preset) => ({ preset, ...scoreSignals(hostname, urlText, title, preset.signals) }))
+    .map((preset) => ({ preset, ...scoreSignals(hostname, urlText, title ?? "", preset.signals) }))
     .sort((a, b) => b.score - a.score || b.sourceCount - a.sourceCount);
   const winner = scores[0];
   const runnerUp = scores[1]?.score ?? 0;
@@ -198,15 +198,15 @@ export function classifyCategory(input: string, title = "", overrides: CategoryO
   return { suggestedCategory: winner.preset.id, confidence: "medium", score: winner.score, source: databaseCategories.length ? "database" : "signals" };
 }
 
-export function suggestCategory(input: string, title = ""): CategoryPreset | undefined {
+export function suggestCategory(input: string, title: string | null = ""): CategoryPreset | undefined {
   return getCategoryPreset(classifyCategory(input, title).category);
 }
 
-export function resolveCategory(input: string, overrides: CategoryOverrides = {}, title = ""): CategoryId | undefined {
+export function resolveCategory(input: string, overrides: CategoryOverrides = {}, title: string | null = ""): CategoryId | undefined {
   return classifyCategory(input, title, overrides).category;
 }
 
-export function categorizeHistoryEntries(entries: ReadonlyArray<{ url?: string; title?: string; visitCount?: number }>, overrides: CategoryOverrides = {}, rejections: CategoryRejections = {}): CategoryScanBucket[] {
+export function categorizeHistoryEntries(entries: ReadonlyArray<{ url?: string; title?: string | null; visitCount?: number }>, overrides: CategoryOverrides = {}, rejections: CategoryRejections = {}): CategoryScanBucket[] {
   const buckets = new Map<CategoryId | undefined, CategoryScanBucket>();
   for (const preset of CATEGORY_PRESETS) {
     buckets.set(preset.id, { category: preset.id, urls: 0, visits: 0, domains: [] });

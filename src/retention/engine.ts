@@ -136,4 +136,3 @@ export async function deleteVisitedUrlImmediately(url: string, title = ""): Prom
   }, settings.maxLogEntries);
   return true;
 }
-

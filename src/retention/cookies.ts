@@ -60,4 +60,3 @@ export async function deleteCookiesForExpiredCandidates(candidates: HistoryCandi
   }
   return deleted;
 }
-

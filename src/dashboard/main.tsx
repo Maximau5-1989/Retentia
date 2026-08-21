@@ -22,11 +22,12 @@ import { installWindowDiagnostics, recordDiagnostic } from "../shared/diagnostic
 import { SUPPORT_URL } from "../shared/support";
 import { webExtension } from "../shared/web-extension";
 import type { ActivityEntry, CategoryId, CategoryOverrides, CategoryRejections, CategoryScanResult, DiagnosticEntry, RetentionRule, RuleKind, ScanResult, Settings, TimeUnit } from "../shared/types";
+import { cookieDomainForRule, countCookiesForRule, requestCookiePermissionForRule } from "../retention/cookies";
 import "../styles.css";
 
 type View = "overview" | "rules" | "categories" | "simulator" | "activity" | "changelog" | "settings";
 type CategoryFilter = "all" | "review" | "custom" | "automatic";
-const EMPTY_RULE: Omit<RetentionRule, "id" | "createdAt"> = { name: "", kind: "domain", pattern: "", duration: 7, unit: "days", enabled: true, deleteImmediately: false, priority: 50 };
+const EMPTY_RULE: Omit<RetentionRule, "id" | "createdAt"> = { name: "", kind: "domain", pattern: "", duration: 7, unit: "days", enabled: true, deleteImmediately: false, deleteCookiesOnExpiry: false, priority: 50 };
 const DASHBOARD_VIEWS: ReadonlyArray<{ id: View; label: string; description: string }> = [
   { id: "overview", label: "Overview", description: "See Retentia's current protection and recent cleanup totals." },
   { id: "rules", label: "Rules", description: "Create and manage the retention rules applied to browser history." },
@@ -93,6 +94,7 @@ function Dashboard() {
   const requestedView = initialParameters.get("view");
   const [view, setView] = useState<View>(requestedRuleUrl || requestedAddToRuleUrl ? "rules" : isView(requestedView) ? requestedView : "overview");
   const [rules, setRules] = useState<RetentionRule[]>([]);
+  const [ruleCookieCounts, setRuleCookieCounts] = useState<Record<string, number | null>>({});
   const [settings, setSettings] = useState<Settings>();
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [diagnostics, setDiagnostics] = useState<DiagnosticEntry[]>([]);
@@ -171,6 +173,14 @@ function Dashboard() {
     if (view === "changelog" && pendingChangelogVersion) void markChangelogSeen();
   }, [view, pendingChangelogVersion]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all(rules.map(async (rule) => [rule.id, await countCookiesForRule(rule)] as const)).then((entries) => {
+      if (!cancelled) setRuleCookieCounts(Object.fromEntries(entries));
+    });
+    return () => { cancelled = true; };
+  }, [rules]);
+
   async function persistRules(next: RetentionRule[]) { setRules(next); await storage.setRules(next); }
   async function attachTargetToRule(ruleId: string, kind: ManualTargetKind, input: string) {
     const selectedRule = rules.find((rule) => rule.id === ruleId);
@@ -239,6 +249,10 @@ function Dashboard() {
       tone: "danger",
     })) return;
     const normalizedDraft = { ...draft, name, pattern };
+    if (normalizedDraft.deleteCookiesOnExpiry && !await requestCookiePermissionForRule(normalizedDraft)) {
+      setNotice("Cookie access was not granted. The rule was not changed.");
+      return;
+    }
     const rule = editingId
       ? { ...rules.find((item) => item.id === editingId)!, ...normalizedDraft }
       : { ...normalizedDraft, id: crypto.randomUUID(), createdAt: Date.now() };
@@ -248,7 +262,7 @@ function Dashboard() {
     setDraft(EMPTY_RULE); setEditingId(undefined); setDeleteExisting(false); setNotice(removed ? `Rule saved · ${removed} matching URL${removed === 1 ? "" : "s"} removed` : "Rule saved");
     if (removed) setActivity(await storage.getActivity());
   }
-  function editRule(rule: RetentionRule) { setEditingId(rule.id); setNewRuleExpanded(true); setDeleteExisting(false); setDraft({ name: rule.name, kind: rule.kind, pattern: rule.pattern, duration: rule.duration, unit: rule.unit, enabled: rule.enabled, deleteImmediately: rule.deleteImmediately ?? false, priority: rule.priority, category: rule.category }); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function editRule(rule: RetentionRule) { setEditingId(rule.id); setNewRuleExpanded(true); setDeleteExisting(false); setDraft({ name: rule.name, kind: rule.kind, pattern: rule.pattern, duration: rule.duration, unit: rule.unit, enabled: rule.enabled, deleteImmediately: rule.deleteImmediately ?? false, deleteCookiesOnExpiry: rule.deleteCookiesOnExpiry ?? false, priority: rule.priority, category: rule.category }); window.scrollTo({ top: 0, behavior: "smooth" }); }
   async function simulate() { setSimulating(true); try { setLastScan(await scanHistory(false)); } finally { setSimulating(false); } }
   async function runCleanup() {
     const expiredCount = lastScan?.expired ?? 0;
@@ -619,6 +633,7 @@ function Dashboard() {
               <label><span className="label">Pattern</span><input required className="field" value={draft.pattern} onChange={e => setDraft({ ...draft, pattern: e.target.value })} onBlur={suggestDraftCategory} placeholder={draft.kind === 'domain' ? 'example.com' : draft.kind === 'exact' ? 'https://example.com/private/page' : draft.kind === 'wildcard' ? 'https://example.com/private/*' : draft.kind === 'category' ? 'news' : '/private/\\d+$'} /></label>
               <label><span className="label">Deletion timing</span><select className="field" value={draft.deleteImmediately ? 'immediate' : 'retention'} onChange={e => setDraft({ ...draft, deleteImmediately: e.target.value === 'immediate' })}><option value="retention">After a retention period</option><option value="immediate">Immediately after visit</option></select><span className="muted mt-1 block text-xs">Immediate rules remove the URL from history without closing the website.</span></label>
               {!draft.deleteImmediately && <div className="grid grid-cols-2 gap-3"><label><span className="label">Keep for</span><input required min="1" type="number" className="field" value={draft.duration} onChange={e => setDraft({ ...draft, duration: Number(e.target.value) })} /></label><label><span className="label">Duration</span><select className="field" value={draft.unit} onChange={e => setDraft({ ...draft, unit: e.target.value as TimeUnit })}><option value="minutes">Minutes</option><option value="hours">Hours</option><option value="days">Days</option></select></label></div>}
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950"><input className="mt-1 h-4 w-4" type="checkbox" checked={draft.deleteCookiesOnExpiry ?? false} disabled={!['domain','exact'].includes(draft.kind)} onChange={e => setDraft({ ...draft, deleteCookiesOnExpiry: e.target.checked })} /><span><strong className="block text-sm">Delete associated cookies when this rule expires</strong><span className="muted mt-1 block text-xs">Off by default. Firefox asks for access only to this rule's domain. Available for domain and specific-URL rules. Only cookies are deleted; cache, Local Storage, IndexedDB, and other site data remain.</span></span></label>
               <label><span className="label">Priority (higher wins)</span><input type="number" className="field" value={draft.priority} onChange={e => setDraft({ ...draft, priority: Number(e.target.value) })} /></label>
               {!editingId && <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#f0cfbd] bg-[#fff7f1] p-4 dark:border-[#694331] dark:bg-[#2a201b]"><input className="mt-1 h-4 w-4 accent-[#a94f1c]" type="checkbox" checked={deleteExisting} onChange={e => setDeleteExisting(e.target.checked)} /><span><strong className="block text-sm">Delete existing matching history now</strong><span className="muted mt-1 block text-xs">Permanently removes every existing URL matched by this rule immediately after creation. You will be asked to confirm.</span></span></label>}
               <div className="flex gap-2"><button className="btn-primary flex-1" type="submit">Save rule</button>{editingId && <button type="button" className="btn-secondary" onClick={() => { setEditingId(undefined); setDraft(EMPTY_RULE); }}>Cancel</button>}</div>
@@ -636,7 +651,7 @@ function Dashboard() {
             </div>}
           </form>
           </div>
-          <section className="space-y-3">{rules.length === 0 ? <div className="card p-8 text-center"><h3>No rules yet</h3><p className="muted">Add your first retention rule to begin.</p></div> : rules.map(rule => <article className="card flex flex-wrap items-center gap-3 p-5" key={rule.id}><button type="button" role="switch" aria-checked={rule.enabled} aria-label={`${rule.enabled ? 'Disable' : 'Enable'} ${rule.name}`} className={`toggle shrink-0 ${rule.enabled?'on':''}`} onClick={() => persistRules(rules.map(item => item.id === rule.id ? {...item,enabled:!item.enabled}:item))}/><div className="min-w-[150px] flex-1"><h3 className="m-0 truncate text-base font-extrabold">{rule.name}</h3></div><button className="btn-secondary" onClick={() => editRule(rule)}>Edit</button><button className="btn-danger" onClick={() => void deleteRule(rule)}>Delete</button></article>)}</section>
+          <section className="space-y-3">{rules.length === 0 ? <div className="card p-8 text-center"><h3>No rules yet</h3><p className="muted">Add your first retention rule to begin.</p></div> : rules.map(rule => <article className="card flex flex-wrap items-center gap-3 p-5" key={rule.id}><button type="button" role="switch" aria-checked={rule.enabled} aria-label={`${rule.enabled ? 'Disable' : 'Enable'} ${rule.name}`} className={`toggle shrink-0 ${rule.enabled?'on':''}`} onClick={() => persistRules(rules.map(item => item.id === rule.id ? {...item,enabled:!item.enabled}:item))}/><div className="min-w-[150px] flex-1"><h3 className="m-0 truncate text-base font-extrabold">{rule.name}</h3>{rule.deleteCookiesOnExpiry && <div className="muted text-xs"><span>Cookie cleanup enabled</span>{ruleCookieCounts[rule.id] !== null && ruleCookieCounts[rule.id] !== undefined && <span> · {cookieDomainForRule(rule)} · {ruleCookieCounts[rule.id]} associated cookie{ruleCookieCounts[rule.id] === 1 ? '' : 's'} currently stored</span>}</div>}</div><button className="btn-secondary" onClick={() => editRule(rule)}>Edit</button><button className="btn-danger" onClick={() => void deleteRule(rule)}>Delete</button></article>)}</section>
         </div>}
 
         {view === "simulator" && <section>
@@ -661,3 +676,4 @@ function Dashboard() {
 }
 
 createRoot(document.getElementById("root")!).render(<React.StrictMode><Dashboard /></React.StrictMode>);
+

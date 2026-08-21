@@ -28,4 +28,3 @@ describe("browser manifests", () => {
     expect(chromeManifest.permissions).toContain("contextMenus");
   });
 });
-

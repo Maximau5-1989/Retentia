@@ -15,6 +15,8 @@ describe("browser manifests", () => {
 
   it("keeps Firefox permissions minimal and declares no data collection", () => {
     expect(firefoxManifest.permissions).toEqual(["history", "storage", "alarms", "tabs"]);
+    expect(firefoxManifest.optional_permissions).toEqual(["cookies"]);
+    expect(firefoxManifest.optional_host_permissions).toEqual(["*://*/*"]);
     expect(firefoxManifest.browser_specific_settings.gecko).toMatchObject({
       id: "{77b5fe30-ca69-401c-8367-34947d2e21ef}",
       strict_min_version: "142.0",
@@ -26,3 +28,4 @@ describe("browser manifests", () => {
     expect(chromeManifest.permissions).toContain("contextMenus");
   });
 });
+

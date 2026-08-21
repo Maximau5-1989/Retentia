@@ -2,6 +2,16 @@ import type { ReleaseNotes } from "./types";
 
 export const FIREFOX_RELEASE_NOTES: readonly ReleaseNotes[] = [
   {
+    version: "2.4.0",
+    date: "2026-08-21",
+    title: "Optional cookie retention",
+    changes: [
+      "Added opt-in cookie deletion for concrete domain and URL rules when matching history actually expires.",
+      "Requests access only for the selected rule domain and leaves cache, Local Storage, IndexedDB, and other site data untouched.",
+      "Shows the current associated-cookie count per opted-in rule without storing cookie names or values.",
+    ],
+  },
+  {
     version: "2.3.1",
     date: "2026-08-16",
     title: "Firefox Android manifest compatibility",
@@ -50,3 +60,4 @@ export const FIREFOX_RELEASE_NOTES: readonly ReleaseNotes[] = [
 ];
 
 export const CURRENT_RELEASE_NOTES = FIREFOX_RELEASE_NOTES;
+

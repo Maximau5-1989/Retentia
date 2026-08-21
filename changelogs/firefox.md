@@ -27,4 +27,3 @@
 
 - Added the initial Firefox Desktop build with Retentia's popup, dashboard, retention rules, local category classifier, simulator, automatic cleanup, themes, password protection, backups, and privacy-safe diagnostics.
 - Used Firefox's supported background model, a stable add-on ID, and minimal permissions. The Chrome history-page shortcut is omitted because extensions cannot access Firefox's privileged History interface.
-

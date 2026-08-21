@@ -36,4 +36,3 @@ The local password lock is designed to discourage casual access to rule manageme
 ## Changes
 
 If Retentia's data practices change, this policy and the extension's disclosures will be updated before release.
-

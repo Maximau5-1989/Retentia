@@ -11,6 +11,7 @@ export interface RetentionRule {
   unit: TimeUnit;
   enabled: boolean;
   deleteImmediately?: boolean;
+  deleteCookiesOnExpiry?: boolean;
   additionalUrls?: string[];
   additionalDomains?: string[];
   priority: number;
@@ -131,3 +132,4 @@ export interface CategoryScanResult {
   runAt: number;
   resultLimitReached: boolean;
 }
+

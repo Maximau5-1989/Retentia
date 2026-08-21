@@ -4,6 +4,7 @@ import type { CategoryScanResult, HistoryCandidate, RetentionRule, ScanResult } 
 import { isFirefox, webExtension } from "../shared/web-extension";
 import { findWinningRule, getExpirationTime, matchesRule } from "./matcher";
 import { isProtectedUrl } from "./protection";
+import { deleteCookiesForExpiredCandidates } from "./cookies";
 
 const AUTOMATIC_SCAN_LIMIT = 100_000;
 const MANUAL_SCAN_LIMIT = 1_000_000;
@@ -74,9 +75,14 @@ export async function scanHistory(deleteExpired = false, forceDelete = false): P
       await webExtension.history.deleteUrl({ url: candidate.url });
       deleted += 1;
     }
+    const cookiesDeleted = await deleteCookiesForExpiredCandidates(expired);
     if (deleted) await storage.addActivity({
       id: crypto.randomUUID(), timestamp: Date.now(), type: "deleted", count: deleted,
       message: `${deleted} history URL${deleted === 1 ? "" : "s"} removed by retention rules`,
+    }, settings.maxLogEntries);
+    if (cookiesDeleted) await storage.addActivity({
+      id: crypto.randomUUID(), timestamp: Date.now(), type: "deleted", count: cookiesDeleted,
+      message: `${cookiesDeleted} associated cookie${cookiesDeleted === 1 ? "" : "s"} removed by opted-in rules`,
     }, settings.maxLogEntries);
   }
 
@@ -98,6 +104,9 @@ export async function cleanExpiredForRule(rule: RetentionRule): Promise<number> 
     return getExpirationTime(item.lastVisitTime, rule) <= now ? [item.url] : [];
   }))];
   for (const url of expiredUrls) await webExtension.history.deleteUrl({ url });
+  await deleteCookiesForExpiredCandidates(expiredUrls.map((url) => ({
+    url, title: url, lastVisitTime: now, visitCount: 0, rule, expiresAt: now, expired: true,
+  })));
   if (expiredUrls.length) await storage.addActivity({
     id: crypto.randomUUID(), timestamp: now, type: "deleted", count: expiredUrls.length,
     message: `${expiredUrls.length} history URL${expiredUrls.length === 1 ? "" : "s"} removed by a category rule`,
@@ -127,3 +136,4 @@ export async function deleteVisitedUrlImmediately(url: string, title = ""): Prom
   }, settings.maxLogEntries);
   return true;
 }
+

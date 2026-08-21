@@ -47,4 +47,3 @@ describe("opt-in cookie cleanup", () => {
     expect(getAll).toHaveBeenCalledWith({ domain: "example.com" });
   });
 });
-

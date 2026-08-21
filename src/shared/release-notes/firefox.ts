@@ -60,4 +60,3 @@ export const FIREFOX_RELEASE_NOTES: readonly ReleaseNotes[] = [
 ];
 
 export const CURRENT_RELEASE_NOTES = FIREFOX_RELEASE_NOTES;
-

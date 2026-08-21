@@ -77,7 +77,7 @@ Release histories are maintained separately in the [Chrome changelog](changelogs
 
 Public privacy policy: https://maximau5-1989.github.io/Retentia/privacy/
 
-Retentia uses the browser History API and local extension storage. It has no host permissions, analytics, remote services, or account system.
+Retentia uses the browser History API and local extension storage. Optional cookie cleanup requests host access only for domains selected by the user. Retentia has no analytics, remote services, account system, or outbound network requests.
 The public privacy policy is available at https://maximau5-1989.github.io/Retentia/privacy/.
 
 Category classification runs entirely in memory. URL paths, queries, and the browser's stored page titles can contribute to a confidence score, but classification details are discarded when the dashboard is closed or refreshed and are never written to the activity log.
@@ -110,3 +110,4 @@ does not replace or restrict those third-party licenses.
 ## Important behavior
 
 Chrome and Firefox delete history by URL. A retention timer is therefore based on the URL's most recent visit. Revisiting a URL resets its timer, and deleting an expired URL removes that URL's recorded visits from browser history.
+

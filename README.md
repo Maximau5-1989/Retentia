@@ -110,4 +110,3 @@ does not replace or restrict those third-party licenses.
 ## Important behavior
 
 Chrome and Firefox delete history by URL. A retention timer is therefore based on the URL's most recent visit. Revisiting a URL resets its timer, and deleting an expired URL removes that URL's recorded visits from browser history.
-

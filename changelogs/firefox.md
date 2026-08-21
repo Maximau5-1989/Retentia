@@ -1,5 +1,11 @@
 # Firefox changelog
 
+## 2.4.0 — 2026-08-21
+
+- Added optional per-rule cookie deletion for concrete domains and URLs. Cookie cleanup runs only when matching history expires, requests access only for the selected domain, and never touches unrelated cookies.
+- Added a live associated-cookie count to opted-in rules without storing cookie names or values.
+- Kept cache, Local Storage, IndexedDB, service workers, and all other site data outside Retentia's cleanup scope.
+
 ## 2.3.1 - 2026-08-16
 
 - Raised Firefox's minimum version to 142 so the declared no-data-collection permission is supported on Firefox for Android.
@@ -21,3 +27,4 @@
 
 - Added the initial Firefox Desktop build with Retentia's popup, dashboard, retention rules, local category classifier, simulator, automatic cleanup, themes, password protection, backups, and privacy-safe diagnostics.
 - Used Firefox's supported background model, a stable add-on ID, and minimal permissions. The Chrome history-page shortcut is omitted because extensions cannot access Firefox's privileged History interface.
+

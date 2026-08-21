@@ -132,4 +132,3 @@ export interface CategoryScanResult {
   runAt: number;
   resultLimitReached: boolean;
 }
-

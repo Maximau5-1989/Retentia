@@ -2,13 +2,19 @@
   "manifest_version": 3,
   "name": "Retentia",
   "short_name": "Retentia",
-  "version": "2.3.1",
+  "version": "2.4.0",
   "description": "Give selected browser history a personal expiration date.",
   "permissions": [
     "history",
     "storage",
     "alarms",
     "tabs"
+  ],
+  "optional_permissions": [
+    "cookies"
+  ],
+  "optional_host_permissions": [
+    "*://*/*"
   ],
   "background": {
     "scripts": [
@@ -45,3 +51,4 @@
     }
   }
 }
+
